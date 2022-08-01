@@ -6,5 +6,11 @@ SPACE = {
 }
 
 
+def load_objective_func():
+    def objective(*, alpha, gamma):
+        return alpha ** 2 + gamma ** 2
+    return objective
+
+
 def load_search_space():
     return SPACE
