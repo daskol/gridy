@@ -1,0 +1,26 @@
+# See PEP-517 and PEP-518 for details.
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ultraopt"
+version = "0.0.0"
+readme = "README.md"
+classifiers = []
+dependencies = [
+    "aiohttp>=3.8",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=6.0",
+]
+
+[project.scripts]
+ultraopt = "ultraopt.cli:main"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
