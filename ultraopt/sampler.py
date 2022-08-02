@@ -192,6 +192,14 @@ class PersistentSampler(Sampler):
         # TODO: Move to determenistic paramters out of sampler.
         self.seeds = (0, 1, 2)
 
+    def __str__(self) -> str:
+        args = ', '.join([
+            f'scheduled={len(self.scheduled)}',
+            f'running={len(self.running)}',
+            f'finished={len(self.finished)}',
+        ])
+        return f'{self.__class__.__name__}({args})'
+
     @classmethod
     def open(cls, path: PathLike, space,
              sampler_cls: Type[Sampler] = HyperOptSampler):
