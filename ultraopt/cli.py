@@ -8,6 +8,8 @@ from argparse import ArgumentParser, FileType
 from pathlib import Path
 from sys import stderr
 
+from . import server, worker
+
 LOG_LEVELS = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
@@ -21,7 +23,9 @@ def help_():
 
 
 def serve(listen: str):
-    pass
+    host, port = listen.split(':', 1)
+    port = int(port)
+    server.run(host, port)
 
 
 def show(data_dir: Path):
@@ -36,8 +40,8 @@ def version_():
     print('ultraopt version {version}')  # TODO
 
 
-def work():
-    pass
+def work(pool_size: int):
+    worker.run(pool_size)
 
 
 def main():
@@ -99,4 +103,5 @@ work_p.set_defaults(func=work)
 work_p.add_argument('-c', '--connect', default='127.0.0.1:8080', metavar='HOST:PORT')
 work_p.add_argument('-d', '--data-dir')
 work_p.add_argument('-n', '--name')
+work_p.add_argument('-p', '--pool-size', default=1, type=int)
 work_p.add_argument('-t', '--timeout')
