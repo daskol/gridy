@@ -15,11 +15,17 @@ class Handler:
 
     def __init__(self, sampler: Sampler):
         self.sampler = sampler
+        self.budget_limit = 2 * 158
+        self.budget_used = 0
 
     async def get_ping(self, req: Request):
         return Response(text='Pong.\n')
 
     async def get_sample(self, req: Request):
+        if self.budget_used >= self.budget_limit:
+            raise RuntimeError('Reach budget limit: exit.')
+        else:
+            self.budget_used += 1
         sample = self.sampler.sample()
         return json_response(sample)
 
