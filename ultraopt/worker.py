@@ -2,8 +2,10 @@ import asyncio
 import logging
 
 from asyncio import AbstractEventLoop
-from json import dumps
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from http import HTTPStatus
+from json import dumps
+from multiprocessing import Process, Queue
 from typing import Any, Callable, Dict, Optional
 
 from aiohttp import ClientSession
@@ -73,10 +75,13 @@ class Worker:
     submitting from remote coordinator.
     """
 
-    def __init__(self, fn: Callable[..., float]):
+    def __init__(self, fn: Callable[..., float],
+                 worker_id: Optional[int] = None):
         self.fn = fn
         self.client = Client('http://127.0.0.1:8080')
         self.done = False
+        self.queue = Queue()
+        self.worker_id = worker_id
 
     def run(self):
         while not self.done:
@@ -101,10 +106,28 @@ class Worker:
 
         logging.info('evaluate objective function on sample #%d: %s', tid,
                      dumps(params))
-        value = self.fn(**params)
+        value = self.evaluate(tid, params)
 
         logging.info('submit evaluation on sample #%d: %e', tid, value)
         self.client.submit(trial['tid'], value)
+
+    def evaluate(self, tid: int, params: Dict[str, Any]) -> float:
+        def fn(queue: Queue, params: Dict[str, Any]):
+            value = self.fn(**params)
+            queue.put(value)
+
+        process_id = '' if self.worker_id is None else str(self.worker_id)
+        process_name = 'worker' + process_id
+        process = Process(target=fn,
+                          name=process_name,
+                          args=(self.queue, params))
+
+        process.start()
+        process.join(timeout=None)
+        if process.exitcode is None:
+            process.kill()
+
+        return self.queue.get(timeout=None)
 
     def stop(self, timeout: Optional[float] = None):
         raise NotImplementedError
@@ -116,13 +139,25 @@ class WorkerPool:
 
     def __init__(self, fn: Callable[..., float], noworkers: int = 1):
         self.fn = fn
-        self.worker = Worker(fn)
+        self.noworkers = noworkers
+
+    @staticmethod
+    def execute(worker_id: int, fn: Callable[..., float]):
+        worker = Worker(fn, worker_id=worker_id)
+        worker.run()
 
     def run(self):
-        self.worker.run()
+        with ProcessPoolExecutor(self.noworkers) as pool:
+            tasks = []
+            for worker_id in range(self.noworkers):
+                task = pool.submit(WorkerPool.execute, worker_id, self.fn)
+                tasks.append(task)
+            for task in as_completed(tasks):
+                if (e := task.exception()) is not None:
+                    logging.error('worker finished with exeception: %s', e)
 
     def stop(self, timeout: Optional[float] = None):
-        self.worker.stop()
+        raise NotImplementedError
 
 
 def run(fn: Callable[..., float], noworkers: int = 1):
