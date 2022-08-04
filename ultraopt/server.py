@@ -23,7 +23,8 @@ class Handler:
 
     async def get_sample(self, req: Request):
         if self.budget_used >= self.budget_limit:
-            raise RuntimeError('Reach budget limit: exit.')
+            # TODO: raise RuntimeError('Reach budget limit: exit.')
+            return json_response({})
         else:
             self.budget_used += 1
         sample = self.sampler.sample()

@@ -4,7 +4,6 @@ import logging
 from asyncio import AbstractEventLoop
 from json import dumps
 from http import HTTPStatus
-from time import sleep
 from typing import Any, Callable, Dict, Optional
 
 from aiohttp import ClientSession
@@ -77,21 +76,28 @@ class Worker:
     def __init__(self, fn: Callable[..., float]):
         self.fn = fn
         self.client = Client('http://127.0.0.1:8080')
+        self.done = False
 
     def run(self):
-        while True:
+        while not self.done:
             try:
-                self.iterate()
+                self.run_unsafe()
             except Exception:
+                # TODO(@daskol): Think about better back-off.
                 logging.exception('sample-eval-submit iteration failed',
                                   exc_info=True)
-                sleep(5)  # TODO(@daskol): Think aboute better back-off.
+                raise
 
-    def iterate(self):
-        logging.info('request sample from coordinator')
+    def run_unsafe(self):
+        logging.debug('request sample from coordinator')
         trial = self.client.sample()
-        tid = trial['tid']
+        tid = trial.get('tid')
         params = trial.get('params', {})
+
+        if tid is None:
+            logging.info('no trial identifier: normal exitting')
+            self.done = True
+            return
 
         logging.info('evaluate objective function on sample #%d: %s', tid,
                      dumps(params))
