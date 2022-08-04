@@ -9,6 +9,7 @@ from pathlib import Path
 from sys import stderr
 
 from . import server, worker
+from .util import load_objective_func
 
 LOG_LEVELS = {
     'debug': logging.DEBUG,
@@ -41,7 +42,7 @@ def version_():
 
 
 def work(pool_size: int):
-    worker.run(pool_size)
+    worker.run(load_objective_func, pool_size)
 
 
 def main():
@@ -83,7 +84,7 @@ help_p.set_defaults(func=help_)
 serve_p = subparsers.add_parser('serve', help='Run server to coordinate sampling and evaluation.')  # noqa: E501
 serve_p.set_defaults(func=serve)
 serve_p.add_argument('-d', '--data-dir', default='.')
-serve_p.add_argument('-l', '--listen', default='0.0.0.0:8080', metavar='HOST:PORT')
+serve_p.add_argument('-l', '--listen', default='0.0.0.0:8080', metavar='HOST:PORT')  # noqa: E501
 serve_p.add_argument('-t', '--timeout')
 serve_p.add_argument('-s', '--seed', nargs='*')
 
@@ -100,7 +101,7 @@ version_p.set_defaults(func=version_)
 
 work_p = subparsers.add_parser('work', help='Run worker to evaluate an objective.')  # noqa: E501
 work_p.set_defaults(func=work)
-work_p.add_argument('-c', '--connect', default='127.0.0.1:8080', metavar='HOST:PORT')
+work_p.add_argument('-c', '--connect', default='127.0.0.1:8080', metavar='HOST:PORT')  # noqa: E501
 work_p.add_argument('-d', '--data-dir')
 work_p.add_argument('-n', '--name')
 work_p.add_argument('-p', '--pool-size', default=1, type=int)
