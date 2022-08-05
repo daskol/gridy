@@ -190,7 +190,7 @@ class PersistentSampler(Sampler):
         self.replay()
 
         # TODO: Move to determenistic paramters out of sampler.
-        self.seeds = (0, 1, 2)
+        self.seeds = (3407, 42, 0x3aa7d859)
 
     def __str__(self) -> str:
         args = ', '.join([
