@@ -14,6 +14,7 @@ from .sampler import PersistentSampler
 
 SPACE = {
     'alpha': hp.loguniform('alpha', -3, 0),
+    'mu': 1.0,
     'gamma': hp.loguniform('gamma', -2, 0),
 }
 
