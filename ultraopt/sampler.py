@@ -70,7 +70,9 @@ class HyperOptSampler(Sampler):
     :param seed: Random seed.
     """
 
-    def __init__(self, space, seed: Optional[int] = None):
+    def __init__(self, space, num_warmup_samples: int = 10,
+                 seed: Optional[int] = None):
+        self.num_warmup_samples = num_warmup_samples
         self.rng = np.random.default_rng(seed)
         self.trials = Trials()
         self.domain = Domain(fn=lambda: RuntimeError('unexpected'),
@@ -81,7 +83,8 @@ class HyperOptSampler(Sampler):
         # Based on implementation of hyperopt.fmin.FMinIter.run() method.
         tids = self.trials.new_trial_ids(1)
         seed = self.rng.integers(2**31 - 1)
-        trials = suggest(tids, self.domain, self.trials, seed, verbose=True)
+        trials = suggest(tids, self.domain, self.trials, seed,
+                         n_startup_jobs=self.num_warmup_samples, verbose=True)
 
         # TODO: List `trials` can be empty. Why?
         if len(trials) != 1:
