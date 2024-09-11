@@ -1,5 +1,7 @@
 # Gridy
 
+![On push workflow.](https://github.com/daskol/gridy/actions/workflows/on-push.yml/badge.svg)
+
 *Better hyperparameter searcher*
 
 ## Overview

@@ -1,9 +1,8 @@
-import numpy as np
-
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+import numpy as np
 from hyperopt import Trials, fmin, hp, tpe
 
 from ultraopt.sampler import HyperOptSampler, PersistentSampler
@@ -28,7 +27,7 @@ class TestHyperOptSampler(TestCase):
                      verbose=False)
 
         # Sample from wrapped hyperopt sampler.
-        sampler = HyperOptSampler(seed=42)
+        sampler = HyperOptSampler(TestHyperOptSampler.SPACE, seed=42)
         sample = sampler.sample()
 
         # Compare samples.
@@ -50,7 +49,7 @@ class TestHyperOptSampler(TestCase):
 
         # Sample hyperparameters with wrapped hyperopt sampler.
         trials = []
-        sampler = HyperOptSampler(seed=42)
+        sampler = HyperOptSampler(TestHyperOptSampler.SPACE, seed=42)
         trial = sampler.sample()
         trials.append(trial)
         sampler.submit(trial['tid'], 0.0)
@@ -75,7 +74,8 @@ class TestPersistentSampler(TestCase):
         with TemporaryDirectory() as tmpdir:
             tmpdir = '/tmp'
             with WAL.open(Path(tmpdir) / 'wal.jsonl') as wal:
-                sampler = PersistentSampler(self.SPACE, HyperOptSampler(), wal)
+                hp_sampler = HyperOptSampler(self.SPACE)
+                sampler = PersistentSampler(self.SPACE, hp_sampler, wal)
                 sampler.sample()
                 sampler.sample()
                 print(sampler.scheduled)

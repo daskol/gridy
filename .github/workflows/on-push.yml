@@ -1,0 +1,96 @@
+name: Linting and testing
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Linting with Python 3.12
+    runs-on: 'ubuntu-24.04'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull all PR commits
+        if: github.event.pull_request
+        run: |
+          # Un-shallow refs.
+          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+          # Deepen topic branch; checkout topic branch.
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
+            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
+          git checkout ${{ github.event.pull_request.head.ref }}
+          # Fetch main for common origin.
+          git fetch origin main:main --depth=100
+      - name: Set up Python 3.12
+        uses: actions/setup-python@b64ffcaf5b410884ad320a9cfac8866006a109aa
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Run pre-commit on pull request
+        uses: pre-commit/action@v3.0.0
+        if: github.event.pull_request
+        with:
+          extra_args: >
+            --from-ref "$(git merge-base main HEAD)"
+            --to-ref "${{ github.head_ref }}"
+      - name: Run pre-commit on merge
+        uses: pre-commit/action@v3.0.0
+        if: '!github.event.pull_request'
+
+  test:
+    name: Testing with Python 3.12
+    needs: lint
+    runs-on: 'ubuntu-24.04'
+    container:
+      image: 'ubuntu:24.04'
+    steps:
+      - name: Cache system packages
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        id: cache-apt
+        env:
+          cache-name: cache-apt-packages
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-build-${{ env.cache-name }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}
+            ${{ runner.os }}-build-
+            ${{ runner.os }}
+      # See https://github.com/actions/setup-python/issues/861 for details.
+      - name: Install `lsb_release` binary
+        run: |
+          apt update
+          apt install -y --no-install-recommends lsb-release sqlite3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@b64ffcaf5b410884ad320a9cfac8866006a109aa
+        with:
+          python-version: '3.12'
+          # TODO(@daskol): Default options does not work. We should cache
+          # dependency manually.
+          # cache: 'pip'
+      - name: Install python dependencies
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U aiohttp hyperopt numpy importlib_resources
+          python -m pip install -U build setuptools wheel
+          python -m pip install -U 'pytest>=8.2' pytest-cov
+      - name: Test with pytest
+        run: |
+          export PYTHON_TAG=$(
+            python -c 'import sys; print(sys.implementation.cache_tag)')
+          pytest -vv \
+            --cov-report=html:coverage/html/${PYTHON_TAG} \
+            --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
+            --cov=gridy \
+            --cov=ultraopt \
+            --junitxml=pytest/report.${PYTHON_TAG}.xml
+      - name: Upload PyTest report for Python 3.12
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+        with:
+          name: pytest-report
+          path: |
+            coverage
+            pytest
+      - name: Check typing
+        run: mypy gridy ultraopt || true

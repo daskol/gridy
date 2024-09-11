@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
 from json import dump, loads
-from os import PathLike, SEEK_END, SEEK_SET, fsync
+from os import SEEK_END, SEEK_SET, PathLike, fsync
 from typing import Any, Dict, Optional, TextIO
 
 __all__ = ('Add', 'Eval', 'Record', 'State', 'Update', 'WAL')
@@ -230,7 +230,7 @@ class WAL:
         elif verb == 'eval':
             try:
                 return Eval.from_dict(obj)
-            except Exception as e:
+            except Exception:
                 print(obj)
                 raise
         elif verb == 'update':

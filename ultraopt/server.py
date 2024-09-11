@@ -1,12 +1,10 @@
 import logging
-
 from typing import Optional
 
 from aiohttp.web import Application, Request, Response, json_response, run_app
 
 from .sampler import PersistentSampler, Sampler
 from .util import load_search_space
-
 
 __all__ = ('Coordinator', )
 

@@ -1,6 +1,5 @@
 import asyncio
 import logging
-
 from asyncio import AbstractEventLoop
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from http import HTTPStatus
