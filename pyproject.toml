@@ -11,12 +11,13 @@ readme = "README.md"
 classifiers = []
 dependencies = [
     "aiohttp>=3.8",
+    "hyperopt",  # TODO(@daskol): Should be optional.
+    "numpy>=2",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=6.0",
-]
+dev = ["isort", "mypy", "ruff"]
+test = ["pytest>=8.2"]
 
 [project.scripts]
 ultraopt = "ultraopt.cli:main"
