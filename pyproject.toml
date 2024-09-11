@@ -5,10 +5,42 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ultraopt"
+name = "gridy"
 version = "0.0.0"
-readme = "README.md"
-classifiers = []
+description = """
+A lightweight library for coordination grid search and hyper search
+experiments."""
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Daniel Bershatsky", email = "d.bershatsky2@skoltech.ru"},
+]
+maintainers = [
+    {name = "Daniel Bershatsky", email = "d.bershatsky2@skoltech.ru"},
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: Other/Proprietary License",
+    "Natural Language :: English",
+    "Operating System :: POSIX",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
 dependencies = [
     "aiohttp>=3.8",
     "hyperopt",  # TODO(@daskol): Should be optional.
@@ -20,6 +52,7 @@ dev = ["isort", "mypy", "ruff"]
 test = ["pytest>=8.2"]
 
 [project.scripts]
+gridy = "gridy.cli:main"
 ultraopt = "ultraopt.cli:main"
 
 [tool.isort]
@@ -69,7 +102,7 @@ platforms = ["Linux"]
 zip-safe = true
 
 [tool.setuptools.packages.find]
-include = ["gridy*"]
+include = ["gridy*", "ultraopt"]
 
 [tool.setuptools.package-data]
 
