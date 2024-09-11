@@ -1,7 +1,4 @@
 import logging
-
-import numpy as np
-
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -11,10 +8,11 @@ from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Type
 
+import numpy as np
 from hyperopt.base import JOB_STATE_DONE, Domain, Trials
 from hyperopt.tpe import suggest
 
-from .storage import Add, Eval, State, Update, WAL
+from .storage import WAL, Add, Eval, State, Update
 
 
 class Sampler:

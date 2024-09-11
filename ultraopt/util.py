@@ -61,10 +61,10 @@ class History:
 
         # Add scheduled tasks to history first.
         for task in sampler.scheduled:
-            trial = Trial( trial_id=task.opts['tid'],
+            trial = Trial(trial_id=task.opts['tid'],
                           task_id=task.id,
                           value=None,
-                          params={**task.stoch_params, **task.det_params },
+                          params={**task.stoch_params, **task.det_params},
                           state='scheduled',
                           timestamp=task.timestamp)
             trials.append(trial)

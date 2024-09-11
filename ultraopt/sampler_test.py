@@ -1,9 +1,8 @@
-import numpy as np
-
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
+import numpy as np
 from hyperopt import Trials, fmin, hp, tpe
 
 from ultraopt.sampler import HyperOptSampler, PersistentSampler

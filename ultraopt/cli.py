@@ -3,7 +3,6 @@
 
 import inspect
 import logging
-
 from argparse import ArgumentParser, FileType
 from pathlib import Path
 from sys import stderr
@@ -90,7 +89,7 @@ serve_p.add_argument('-s', '--seed', nargs='*')
 
 show_p = subparsers.add_parser('show', help='Show experiment progress.')  # noqa: E501
 show_p.set_defaults(func=show)
-show_p.add_argument('data_dir', default=Path('.'), type=Path, nargs='?')
+show_p.add_argument('data_dir', default=Path(), type=Path, nargs='?')
 
 submit_p = subparsers.add_parser('submit', help='Submit evaluations manually.')  # noqa: E501
 submit_p.set_defaults(func=submit)
