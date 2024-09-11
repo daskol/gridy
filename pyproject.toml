@@ -45,6 +45,7 @@ dependencies = [
     "aiohttp>=3.8",
     "hyperopt",  # TODO(@daskol): Should be optional.
     "numpy>=2",
+    "importlib_resources; python_version>=3.7",
 ]
 
 [project.optional-dependencies]

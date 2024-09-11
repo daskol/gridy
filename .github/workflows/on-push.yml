@@ -39,7 +39,8 @@ jobs:
       - name: Install python dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -U aiohttp hyperopt numpy
+          python -m pip install -U aiohttp hyperopt numpy importlib_resources
+          python -m pip install -U build setuptools wheel
       - name: Test with pytest
         run: |
           pip install pytest pytest-cov
