@@ -39,7 +39,7 @@ plugins = []
 [tool.pytest.ini_options]
 minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"
-testpaths = ["gridy"]
+testpaths = ["gridy", "ultraopt"]
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
     "cuda: tests that requires CUDA",
