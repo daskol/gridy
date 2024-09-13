@@ -25,7 +25,12 @@ class Handler:
             return json_response({})
         else:
             self.budget_used += 1
-        sample = self.sampler.sample()
+        # TODO(@daskol): Circular imports.
+        from gridy.grid_sampler import ExhaustedSpaceError
+        try:
+            sample = self.sampler.sample()
+        except (StopIteration, ExhaustedSpaceError):
+            sample = {}
         return json_response(sample)
 
     async def post_submit(self, req: Request):
