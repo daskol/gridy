@@ -9,7 +9,9 @@ from typing import Any, Callable, Dict, Optional
 
 from aiohttp import ClientSession
 
-__all__ = ('Worker', 'WorkerPool')
+__all__ = ('DEFAULT_ENDPOINT', 'Worker', 'WorkerPool')
+
+DEFAULT_ENDPOINT = 'http://127.0.0.1:8080'
 
 
 class AsyncClient:
@@ -17,8 +19,8 @@ class AsyncClient:
     def __init__(self,
                  base_url: str,
                  loop: Optional[AbstractEventLoop] = None):
-        self.sess = ClientSession(base_url)
         self.loop = loop or asyncio.get_event_loop()
+        self.sess = ClientSession(base_url, loop=loop)
 
     async def close(self):
         await self.sess.close()
@@ -48,13 +50,16 @@ class AsyncClient:
 
 class Client:
 
-    def __init__(self, base_url: str,
+    def __init__(self, base_url: str = DEFAULT_ENDPOINT,
                  loop: Optional[AbstractEventLoop] = None):
         self.loop = loop or asyncio.get_event_loop()
         self.cli = AsyncClient(base_url, self.loop)
 
     def __del__(self):
-        self.close()
+        # If we was failed during object initialization, then attribute `cli`
+        # can be missing.
+        if hasattr(self, 'cli'):
+            self.close()
 
     def close(self):
         self.loop.run_until_complete(self.cli.close())
