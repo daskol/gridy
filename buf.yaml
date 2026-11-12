@@ -8,6 +8,9 @@ lint:
     - api/buf/validate
     - api/google/api
     - api/mcp/v1
+  ignore_only:
+    RPC_RESPONSE_STANDARD_NAME:
+      - api/sweep/v1/service.proto
 breaking:
   use:
     - FILE

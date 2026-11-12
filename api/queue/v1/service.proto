@@ -3,71 +3,177 @@ syntax = "proto3";
 package queue.v1;
 
 import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
 import "google/api/field_behavior.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "sweep/v1/service.proto";
 
 option go_package = "github.com/daskol/gridy/pkg/api/queue/v1;queue";
 
-// QueueService assigns trials to workers and manages their leases.
+// QueueService coordinates trial attempts. State changes are committed before
+// a successful response.
 service QueueService {
-  // Acquire leases the next available trial in a sweep.
-  rpc Acquire(AcquireRequest) returns (AcquireResponse);
-  // RenewLease extends the lease for a trial attempt.
-  rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse);
-  // Complete records the result of a successful trial attempt.
-  rpc Complete(CompleteRequest) returns (CompleteResponse);
-  // Fail records a failed trial attempt.
-  rpc Fail(FailRequest) returns (FailResponse);
+  // Acquire assigns a trial. Retries keep the assignment.
+  rpc Acquire(AcquireRequest) returns (AcquireResponse) {
+    option (google.api.http) = {
+      post: "/v1/{parent=sweeps/*}/trials:acquire"
+      body: "*"
+    };
+  }
+
+  // RenewLease extends an active lease.
+  rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:renewLease"
+      body: "*"
+    };
+  }
+
+  // Complete records a result. Identical retries succeed. Stale attempts are
+  // rejected.
+  rpc Complete(CompleteRequest) returns (CompleteResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:complete"
+      body: "*"
+    };
+  }
+
+  // Fail records an error. Identical retries succeed. Stale attempts are
+  // rejected.
+  rpc Fail(FailRequest) returns (FailResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:fail"
+      body: "*"
+    };
+  }
 }
 
+// AcquireRequest identifies a worker request.
 message AcquireRequest {
-  string sweep_id = 1 [
+  // Sweep resource name.
+  string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+$"
   ];
+
+  // Worker identifier.
   string worker_id = 2 [
     (google.api.field_behavior) = REQUIRED,
     (buf.validate.field).string.min_len = 1
   ];
+
+  // Request identifier reused for retries.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
 }
 
+// AcquireResponse reports work availability.
 message AcquireResponse {
-  sweep.v1.Trials trial = 1;
-  google.protobuf.Timestamp lease_expires_at = 2;
+  reserved 1, 2;
+  reserved "trial", "lease_expires_at";
+
+  // Exactly one acquisition outcome.
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+
+    // Trial assigned to the worker.
+    Assignment assignment = 3;
+
+    // Work may become available later.
+    google.protobuf.Empty wait = 4;
+
+    // The sweep has no remaining work.
+    google.protobuf.Empty done = 5;
+  }
 }
 
+// Assignment contains a trial and its lease.
+// Expired leases allow a new attempt.
+message Assignment {
+  reserved 1;
+  reserved "trial";
+
+  // Trial resource name for subsequent requests.
+  string name = 3 [(buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"];
+
+  // Active attempt identifier.
+  int64 attempt_id = 4 [(buf.validate.field).int64.gt = 0];
+
+  // Parameters for this trial.
+  google.protobuf.Struct params = 5 [(buf.validate.field).required = true];
+
+  // Time when the attempt lease expires.
+  google.protobuf.Timestamp lease_expires_at = 2 [(buf.validate.field).required = true];
+}
+
+// RenewLeaseRequest identifies an active attempt.
 message RenewLeaseRequest {
-  string trial_id = 1 [
+  // Trial resource name.
+  string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
   ];
-  int64 attempt_id = 2;
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
 }
 
+// RenewLeaseResponse contains the renewed lease.
 message RenewLeaseResponse {
-  google.protobuf.Timestamp lease_expires_at = 1;
+  // Time when the attempt lease expires.
+  google.protobuf.Timestamp lease_expires_at = 1 [(buf.validate.field).required = true];
 }
 
+// CompleteRequest contains a successful attempt result.
 message CompleteRequest {
-  string trial_id = 1 [
+  // Trial resource name.
+  string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (buf.validate.field).string.min_len = 1
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
   ];
-  int64 attempt_id = 2;
-  google.protobuf.Struct result = 3;
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
+
+  // Objective value and other metrics.
+  google.protobuf.Struct result = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).required = true
+  ];
 }
 
+// CompleteResponse confirms the result was stored.
 message CompleteResponse {}
 
+// FailRequest contains a failed attempt error.
 message FailRequest {
-  string trial_id = 1 [
+  // Trial resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
+  ];
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
+
+  // Failure description.
+  string error = 3 [
     (google.api.field_behavior) = REQUIRED,
     (buf.validate.field).string.min_len = 1
   ];
-  int64 attempt_id = 2;
-  string error = 3;
 }
 
+// FailResponse confirms the error was stored.
 message FailResponse {}
