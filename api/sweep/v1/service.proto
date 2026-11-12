@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package sweep.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "mcp/v1/annotations.proto";
+
+option go_package = "github.com/daskol/gridy/pkg/api/sweep/v1;sweep";
+
+// SweepService manages sweeps.
+service SweepService {
+  // GetSweep returns a sweep by identifier.
+  rpc GetSweep(GetSweepRequest) returns (GetSweepResponse) {
+    option (google.api.http) = {
+      get: "/api/sweep/v1/sweep:get"
+      response_body: "sweep"
+    };
+
+    option (mcp.v1.tool_name) = "get_sweep";
+  }
+
+  // ListSweeps returns a page of sweeps.
+  rpc ListSweeps(ListSweepsRequest) returns (ListSweepsResponse) {
+    option (google.api.http) = {
+      post: "/api/sweep/v1/sweep:list"
+      body: "*"
+    };
+
+    option (mcp.v1.tool_name) = "list_sweeps";
+  }
+
+  // SearchSweeps finds sweeps matching a query.
+  rpc SearchSweeps(SearchSweepsRequest) returns (SearchSweepsResponse) {
+    option (google.api.http) = {get: "/api/sweep/v1/sweep:search"};
+
+    option (mcp.v1.tool_name) = "search_sweeps";
+  }
+
+  // GetTrials returns a page of trials belonging to a sweep.
+  rpc GetTrials(GetTrialsRequest) returns (GetTrialsResponse) {
+    option (google.api.http) = {get: "/api/sweep/v1/trials:get"};
+
+    option (mcp.v1.tool_name) = "get_trials";
+  }
+}
+
+message GetSweepRequest {
+  string sweep_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+message GetSweepResponse {
+  Sweep sweep = 1;
+}
+
+message ListSweepsRequest {
+  int32 page_size = 1 [(buf.validate.field).int32.gte = 0];
+  string page_token = 2;
+}
+
+message ListSweepsResponse {
+  repeated Sweep sweeps = 1;
+  string next_page_token = 2;
+}
+
+message SearchSweepsRequest {
+  string query = 1;
+  int32 page_size = 2 [(buf.validate.field).int32.gte = 0];
+  string page_token = 3;
+}
+
+message SearchSweepsResponse {
+  repeated Sweep sweeps = 1;
+  string next_page_token = 2;
+}
+
+message GetTrialsRequest {
+  string sweep_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+  int32 page_size = 2 [(buf.validate.field).int32.gte = 0];
+  string page_token = 3;
+}
+
+message GetTrialsResponse {
+  repeated Trials trials = 1;
+  string next_page_token = 2;
+}
+
+enum SweepState {
+  SWEEP_STATE_UNSPECIFIED = 0;
+  SWEEP_STATE_PENDING = 1;
+  SWEEP_STATE_RUNNING = 2;
+  SWEEP_STATE_COMPLETED = 3;
+  SWEEP_STATE_FAILED = 4;
+}
+
+enum TrialState {
+  TRIAL_STATE_UNSPECIFIED = 0;
+  TRIAL_STATE_PENDING = 1;
+  TRIAL_STATE_RUNNING = 2;
+  TRIAL_STATE_COMPLETED = 3;
+  TRIAL_STATE_FAILED = 4;
+}
+
+message SearchSpace {
+  // Parameter definitions for the search.
+  google.protobuf.Struct parameters = 1;
+}
+
+// Sweep describes a hyperparameter search.
+message Sweep {
+  // Sweep identifier.
+  string sweep_id = 1;
+
+  // Human-readable project-scoped sweep code (for example, I224-QACP).
+  string code = 2;
+
+  SweepState state = 3;
+
+  SearchSpace space = 4;
+
+  // Time when this sweep was created.
+  google.protobuf.Timestamp created_at = 5;
+
+  // Time when this sweep was last modified.
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message Trials {
+  string trial_id = 1;
+
+  int64 attempt_id = 2;
+
+  TrialState state = 3;
+
+  // Time when this trial was created.
+  google.protobuf.Timestamp created_at = 4;
+
+  // Time when this trial was last modified.
+  google.protobuf.Timestamp updated_at = 5;
+}

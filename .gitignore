@@ -136,3 +136,7 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Ignore Protobuf stubs in Go.
+/pkg/api/queue
+/pkg/api/sweep

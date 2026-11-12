@@ -1,0 +1,13 @@
+version: v2
+modules:
+  - path: api
+lint:
+  use:
+    - STANDARD
+  ignore:
+    - api/buf/validate
+    - api/google/api
+    - api/mcp/v1
+breaking:
+  use:
+    - FILE

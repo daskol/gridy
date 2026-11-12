@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package queue.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "sweep/v1/service.proto";
+
+option go_package = "github.com/daskol/gridy/pkg/api/queue/v1;queue";
+
+// QueueService assigns trials to workers and manages their leases.
+service QueueService {
+  // Acquire leases the next available trial in a sweep.
+  rpc Acquire(AcquireRequest) returns (AcquireResponse);
+  // RenewLease extends the lease for a trial attempt.
+  rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse);
+  // Complete records the result of a successful trial attempt.
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
+  // Fail records a failed trial attempt.
+  rpc Fail(FailRequest) returns (FailResponse);
+}
+
+message AcquireRequest {
+  string sweep_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+  string worker_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+message AcquireResponse {
+  sweep.v1.Trials trial = 1;
+  google.protobuf.Timestamp lease_expires_at = 2;
+}
+
+message RenewLeaseRequest {
+  string trial_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+  int64 attempt_id = 2;
+}
+
+message RenewLeaseResponse {
+  google.protobuf.Timestamp lease_expires_at = 1;
+}
+
+message CompleteRequest {
+  string trial_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+  int64 attempt_id = 2;
+  google.protobuf.Struct result = 3;
+}
+
+message CompleteResponse {}
+
+message FailRequest {
+  string trial_id = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+  int64 attempt_id = 2;
+  string error = 3;
+}
+
+message FailResponse {}
