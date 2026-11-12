@@ -52,7 +52,7 @@ jobs:
     container:
       image: 'ubuntu:26.04'
     steps:
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         id: cache-apt
         env:
           cache-name: cache-apt-packages
@@ -63,7 +63,7 @@ jobs:
             ${{ runner.os }}-build-${{ env.cache-name }}
             ${{ runner.os }}-build-
             ${{ runner.os }}
-            #
+
       # See https://github.com/actions/setup-python/issues/861 for details.
       - name: Install `lsb_release` binary
         run: |
