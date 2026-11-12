@@ -1,0 +1,50 @@
+name: build-go
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, build, and test
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following files are not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Lint Protobuf definitions
+        run: go tool buf lint
+
+      - name: Install Python code generators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler protobuf-compiler-grpc
+
+      - name: Generate sources
+        run: |
+          go tool buf generate
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
