@@ -24,3 +24,23 @@ hyperparameter optimization.
    the box.
 8. Gridy must provide persistent zero-conf storage as a default experiment
    storage facility.
+
+## Running the server
+
+```sh
+go run ./cmd/gridy serve \
+    --grpc-listen 127.0.0.1:8081 \
+    --http-listen 127.0.0.1:8080
+```
+
+The HTTP listener serves the generated HTTP/JSON API. The Sweep MCP endpoint
+at `/mcp` and health endpoint is `/healthz`.
+
+Either listener can use a Unix socket instead of TCP as follows.
+
+```sh
+go run ./cmd/gridy serve \
+  --grpc-listen unix:///tmp/gridy-grpc.sock \
+  --http-listen unix:///tmp/gridy-http.sock
+curl --unix-socket /tmp/gridy-http.sock http://localhost/healthz
+```
