@@ -73,9 +73,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        id: python
         with:
-          cache: 'pip'
           python-version: '3.14'
+
+      # Built-in caching invokes a pip script that can fail in containers.
+      # See https://github.com/actions/setup-python/issues/719.
+      - name: Locate pip cache
+        id: pip-cache
+        run: |
+          cache_dir="$(python -m pip cache dir)"
+          echo "dir=$cache_dir" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ steps.pip-cache.outputs.dir }}
+          key: pip-ubuntu-26.04-${{ runner.arch }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-ubuntu-26.04-${{ runner.arch }}-${{ steps.python.outputs.python-version }}-
 
       - name: Install python dependencies
         run: |
