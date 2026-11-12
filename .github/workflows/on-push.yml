@@ -67,10 +67,10 @@ jobs:
             ${{ runner.os }}
 
       # See https://github.com/actions/setup-python/issues/861 for details.
-      - name: Install `lsb_release` binary
+      - name: Install system dependencies
         run: |
           apt update
-          apt install -y --no-install-recommends lsb-release sqlite3
+          apt install -y --no-install-recommends libffi8 lsb-release sqlite3
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
