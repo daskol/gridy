@@ -1,52 +1,58 @@
 name: Linting and testing
 
-on: [push]
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
 
 permissions:
   contents: read
 
 jobs:
   lint:
-    name: Linting with Python 3.12
-    runs-on: 'ubuntu-24.04'
+    name: Linting with Python 3.14
+    runs-on: 'ubuntu-26.04'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
       - name: Pull all PR commits
         if: github.event.pull_request
+        env:
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
         run: |
           # Un-shallow refs.
           git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
           # Deepen topic branch; checkout topic branch.
-          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
-            --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
-          git checkout ${{ github.event.pull_request.head.ref }}
+          git fetch origin "${GITHUB_REF}:${GITHUB_HEAD_REF}" \
+            --depth="$(( PR_COMMITS + 1 ))"
+          git checkout "$GITHUB_HEAD_REF"
           # Fetch main for common origin.
           git fetch origin main:main --depth=100
-      - name: Set up Python 3.12
-        uses: actions/setup-python@b64ffcaf5b410884ad320a9cfac8866006a109aa
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
-          python-version: '3.12'
           cache: 'pip'
-      - name: Run pre-commit on pull request
-        uses: pre-commit/action@v3.0.0
+          python-version: '3.14'
+
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
         if: github.event.pull_request
         with:
           extra_args: >
             --from-ref "$(git merge-base main HEAD)"
             --to-ref "${{ github.head_ref }}"
-      - name: Run pre-commit on merge
-        uses: pre-commit/action@v3.0.0
+
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
         if: '!github.event.pull_request'
 
   test:
-    name: Testing with Python 3.12
+    name: Testing with Python 3.14
     needs: lint
-    runs-on: 'ubuntu-24.04'
+    runs-on: 'ubuntu-26.04'
     container:
-      image: 'ubuntu:24.04'
+      image: 'ubuntu:26.04'
     steps:
-      - name: Cache system packages
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         id: cache-apt
         env:
           cache-name: cache-apt-packages
@@ -57,24 +63,27 @@ jobs:
             ${{ runner.os }}-build-${{ env.cache-name }}
             ${{ runner.os }}-build-
             ${{ runner.os }}
+            #
       # See https://github.com/actions/setup-python/issues/861 for details.
       - name: Install `lsb_release` binary
         run: |
           apt update
           apt install -y --no-install-recommends lsb-release sqlite3
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@b64ffcaf5b410884ad320a9cfac8866006a109aa
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
-          python-version: '3.12'
-          # TODO(@daskol): Default options does not work. We should cache
-          # dependency manually.
-          # cache: 'pip'
+          cache: 'pip'
+          python-version: '3.14'
+
       - name: Install python dependencies
         run: |
           python -m pip install -U pip
           python -m pip install -U aiohttp hyperopt numpy importlib_resources
           python -m pip install -U build setuptools wheel
           python -m pip install -U 'pytest>=8.2' pytest-cov
+
       - name: Test with pytest
         run: |
           export PYTHON_TAG=$(
@@ -85,12 +94,14 @@ jobs:
             --cov=gridy \
             --cov=ultraopt \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
-      - name: Upload PyTest report for Python 3.12
-        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874
+
+      - name: Upload PyTest report for Python 3.14
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: pytest-report
           path: |
             coverage
             pytest
+
       - name: Check typing
         run: mypy gridy ultraopt || true
