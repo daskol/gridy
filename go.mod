@@ -9,6 +9,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redpanda-data/protoc-gen-go-mcp v0.0.0-20260729122341-6334690a62b6
 	github.com/spf13/cobra v1.10.2
+	go.etcd.io/bbolt v1.5.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
