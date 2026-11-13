@@ -1,3 +1,17 @@
+# Copyright 2026 Daniel Bershatsky
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Asynchronous HTTP/JSON client for the coordinator's QueueService.
 
 Use one client per worker process and close it with an async context manager::
@@ -30,7 +44,7 @@ import random
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any, Self
 from urllib.parse import unquote, urlsplit
 
 import aiohttp
@@ -43,7 +57,6 @@ DEFAULT_ENDPOINT = 'http://127.0.0.1:8080'
 _IDENTIFIER = r'[A-Za-z0-9_-]+'
 _TRIAL_NAME = re.compile(rf'sweeps/{_IDENTIFIER}/trials/{_IDENTIFIER}')
 _RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
-_Client = TypeVar('_Client', bound='AsyncClient')
 
 
 class ProtocolError(RuntimeError):
@@ -84,11 +97,11 @@ class Done:
 
 def _timestamp(value: Any) -> datetime:
     try:
-        timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        timestamp = datetime.fromisoformat(value)
         if timestamp.tzinfo is None:
             raise ValueError('missing timezone')
         return timestamp
-    except (AttributeError, TypeError, ValueError) as error:
+    except (TypeError, ValueError) as error:
         raise ProtocolError('Invalid lease_expires_at timestamp') from error
 
 
@@ -168,8 +181,7 @@ class AsyncClient:
                 timeout=self._timeout)
         return self._session
 
-    # Python 3.10 has no typing.Self.
-    async def __aenter__(self: _Client) -> _Client:  # noqa: PYI019
+    async def __aenter__(self) -> Self:
         self._get_session()
         return self
 
