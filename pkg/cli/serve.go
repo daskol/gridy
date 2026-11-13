@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const (
@@ -96,7 +97,7 @@ func Serve(ctx context.Context, c *ServeConfig) error {
 	httpContext, cancelHTTP := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelHTTP()
 
-	gateway := runtime.NewServeMux()
+	gateway := newGatewayMux()
 	if err := queue.RegisterQueueServiceHandlerServer(httpContext, gateway, queueService); err != nil {
 		return fmt.Errorf("register queue HTTP handlers: %w", err)
 	}
@@ -187,6 +188,20 @@ func Serve(ctx context.Context, c *ServeConfig) error {
 		serveErr = errors.Join(serveErr, <-results)
 	}
 	return serveErr
+}
+
+func newGatewayMux() *runtime.ServeMux {
+	return runtime.NewServeMux(runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.HTTPBodyMarshaler{
+		Marshaler: &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseProtoNames:   true,
+				EmitUnpopulated: true,
+			},
+			UnmarshalOptions: protojson.UnmarshalOptions{
+				DiscardUnknown: true,
+			},
+		},
+	}))
 }
 
 func listen(ctx context.Context, address string) (net.Listener, error) {
