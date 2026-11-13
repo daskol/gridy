@@ -58,10 +58,15 @@ type App struct {
 
 // New prepares the servers without opening listeners.
 func New(config Config) *App {
+	logger := slog.Default()
 	mcpServer, mcpRegistrar := gosdk.NewServer("gridy", "dev")
+	mcpServer.AddReceivingMiddleware(mcpAccessLogger(logger))
 	a := &App{
-		config:       config,
-		grpcServer:   grpc.NewServer(),
+		config: config,
+		grpcServer: grpc.NewServer(
+			grpc.ChainUnaryInterceptor(grpcUnaryLogger(logger)),
+			grpc.ChainStreamInterceptor(grpcStreamLogger(logger)),
+		),
 		healthServer: health.NewServer(),
 		httpMux:      http.NewServeMux(),
 		gateway:      newGatewayMux(),
@@ -80,7 +85,7 @@ func New(config Config) *App {
 		_, _ = w.Write([]byte("Ok.\n"))
 	})
 	a.httpServer = &http.Server{
-		Handler:           a.httpMux,
+		Handler:           httpAccessLogger(logger, a.httpMux),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       time.Minute,
 	}

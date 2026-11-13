@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260709200747-435963d16310.1
 	connectrpc.com/connect v1.20.0
+	github.com/felixge/httpsnoop v1.1.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/redpanda-data/protoc-gen-go-mcp v0.0.0-20260729122341-6334690a62b6
@@ -47,7 +48,6 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
