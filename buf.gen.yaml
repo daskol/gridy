@@ -1,0 +1,39 @@
+version: v2
+inputs:
+  - directory: .
+    paths:
+      - api/queue/v1
+      - api/sweep/v1
+plugins:
+  - local: [go, tool, protoc-gen-go]
+    out: pkg/api
+    opt:
+      - paths=source_relative
+
+  - local: [go, tool, protoc-gen-go-grpc]
+    out: pkg/api
+    opt:
+      - paths=source_relative
+
+  - local: [go, tool, protoc-gen-grpc-gateway]
+    out: pkg/api
+    opt:
+      - paths=source_relative
+      - omit_package_doc=true
+
+  - local: [go, tool, protoc-gen-openapiv2]
+    out: pkg/api
+    opt:
+      - json_names_for_fields=false
+
+  # TODO(@daskol): protoc-gen-go-mcp formats encoding/json.RawMessage with its
+  # concrete jsontext.Value type when the generator runs with Go's jsonv2
+  # experiment. Generate this plugin with jsonv1 until the generator handles
+  # that alias.
+  - local: [env, GOEXPERIMENT=nojsonv2, go, tool, protoc-gen-go-mcp]
+    out: pkg/api
+    types:
+      - sweep.v1.SweepService
+    opt:
+      - paths=source_relative
+      - package_suffix=mcp

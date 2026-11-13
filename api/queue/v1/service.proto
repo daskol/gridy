@@ -1,0 +1,179 @@
+syntax = "proto3";
+
+package queue.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/daskol/gridy/pkg/api/queue/v1;queue";
+
+// QueueService coordinates trial attempts. State changes are committed before
+// a successful response.
+service QueueService {
+  // Acquire assigns a trial. Retries keep the assignment.
+  rpc Acquire(AcquireRequest) returns (AcquireResponse) {
+    option (google.api.http) = {
+      post: "/v1/{parent=sweeps/*}/trials:acquire"
+      body: "*"
+    };
+  }
+
+  // RenewLease extends an active lease.
+  rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:renewLease"
+      body: "*"
+    };
+  }
+
+  // Complete records a result. Identical retries succeed. Stale attempts are
+  // rejected.
+  rpc Complete(CompleteRequest) returns (CompleteResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:complete"
+      body: "*"
+    };
+  }
+
+  // Fail records an error. Identical retries succeed. Stale attempts are
+  // rejected.
+  rpc Fail(FailRequest) returns (FailResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=sweeps/*/trials/*}:fail"
+      body: "*"
+    };
+  }
+}
+
+// AcquireRequest identifies a worker request.
+message AcquireRequest {
+  // Sweep resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+$"
+  ];
+
+  // Worker identifier.
+  string worker_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+
+  // Request identifier reused for retries.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+// AcquireResponse reports work availability.
+message AcquireResponse {
+  reserved 1, 2;
+  reserved "trial", "lease_expires_at";
+
+  // Exactly one acquisition outcome.
+  oneof outcome {
+    option (buf.validate.oneof).required = true;
+
+    // Trial assigned to the worker.
+    Assignment assignment = 3;
+
+    // Work may become available later.
+    google.protobuf.Empty wait = 4;
+
+    // The sweep has no remaining work.
+    google.protobuf.Empty done = 5;
+  }
+}
+
+// Assignment contains a trial and its lease.
+// Expired leases allow a new attempt.
+message Assignment {
+  reserved 1;
+  reserved "trial";
+
+  // Trial resource name for subsequent requests.
+  string name = 3 [(buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"];
+
+  // Active attempt identifier.
+  int64 attempt_id = 4 [(buf.validate.field).int64.gt = 0];
+
+  // Parameters for this trial.
+  google.protobuf.Struct params = 5 [(buf.validate.field).required = true];
+
+  // Time when the attempt lease expires.
+  google.protobuf.Timestamp lease_expires_at = 2 [(buf.validate.field).required = true];
+}
+
+// RenewLeaseRequest identifies an active attempt.
+message RenewLeaseRequest {
+  // Trial resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
+  ];
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
+}
+
+// RenewLeaseResponse contains the renewed lease.
+message RenewLeaseResponse {
+  // Time when the attempt lease expires.
+  google.protobuf.Timestamp lease_expires_at = 1 [(buf.validate.field).required = true];
+}
+
+// CompleteRequest contains a successful attempt result.
+message CompleteRequest {
+  // Trial resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
+  ];
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
+
+  // Objective value and other metrics.
+  google.protobuf.Struct result = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).required = true
+  ];
+}
+
+// CompleteResponse confirms the result was stored.
+message CompleteResponse {}
+
+// FailRequest contains a failed attempt error.
+message FailRequest {
+  // Trial resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.pattern = "^sweeps/[^/]+/trials/[^/]+$"
+  ];
+
+  // Active attempt identifier.
+  int64 attempt_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).int64.gt = 0
+  ];
+
+  // Failure description.
+  string error = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+// FailResponse confirms the error was stored.
+message FailResponse {}
