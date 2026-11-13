@@ -9,6 +9,7 @@ description = """
 A lightweight library for coordination grid search and hyper search
 experiments."""
 license = {text = "Apache-2.0"}
+requires-python = ">= 3.12"
 authors = [
     {name = "Daniel Bershatsky", email = "daniel.bershatsky@gmail.com"},
 ]
