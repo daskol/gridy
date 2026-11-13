@@ -1,3 +1,4 @@
+// Package cli provides Gridy commands and server setup.
 package cli
 
 import (

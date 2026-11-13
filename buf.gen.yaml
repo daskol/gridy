@@ -19,6 +19,7 @@ plugins:
     out: pkg/api
     opt:
       - paths=source_relative
+      - omit_package_doc=true
 
   - local: [go, tool, protoc-gen-openapiv2]
     out: pkg/api
