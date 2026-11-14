@@ -9,6 +9,13 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	defaultLeaseDuration = 5 * time.Minute
+	defaultMaxAttempts   = 3
+	defaultPageSize      = 100
+	maxPageSize          = 1000
+)
+
 // Record identifies the table for a stored value.
 type Record interface {
 	// BucketName returns the table name for the zero value.
@@ -49,6 +56,47 @@ type SweepSpec struct {
 	Space         json.RawMessage `json:"space"`
 	LeaseDuration time.Duration   `json:"lease_duration"`
 	MaxAttempts   int             `json:"max_attempts"`
+}
+
+// Normalize validates the spec and applies defaults.
+func (spec SweepSpec) Normalize() (SweepSpec, error) {
+	if !validID(spec.ID) {
+		return SweepSpec{}, fmt.Errorf("sweep identifier: %w", ErrInvalid)
+	}
+	if spec.LeaseDuration < 0 || spec.MaxAttempts < 0 {
+		return SweepSpec{}, fmt.Errorf("sweep execution policy: %w", ErrInvalid)
+	}
+	if spec.LeaseDuration == 0 {
+		spec.LeaseDuration = defaultLeaseDuration
+	}
+	if spec.MaxAttempts == 0 {
+		spec.MaxAttempts = defaultMaxAttempts
+	}
+	space, err := spec.GetSpace()
+	if err != nil {
+		return SweepSpec{}, err
+	}
+	spec.Space = space
+	return spec, nil
+}
+
+// GetSpace returns a normalized copy of the search space.
+func (spec SweepSpec) GetSpace() (json.RawMessage, error) {
+	return normalizeObject(spec.Space, true)
+}
+
+func (spec SweepSpec) validateExecution() error {
+	if spec.LeaseDuration <= 0 || spec.MaxAttempts <= 0 {
+		return fmt.Errorf("sweep execution settings: %w", ErrCorrupt)
+	}
+	return nil
+}
+
+func (spec SweepSpec) leaseDeadline(now time.Time) (time.Time, error) {
+	if spec.LeaseDuration <= 0 {
+		return time.Time{}, fmt.Errorf("sweep lease duration: %w", ErrCorrupt)
+	}
+	return now.Add(spec.LeaseDuration), nil
 }
 
 // Sweep tracks trial generation and completion.
@@ -124,6 +172,19 @@ type TrialSpec struct {
 	Params json.RawMessage `json:"params"`
 }
 
+// Normalize validates the spec and normalizes its parameters.
+func (spec TrialSpec) Normalize() (TrialSpec, error) {
+	if !validID(spec.ID) {
+		return TrialSpec{}, fmt.Errorf("trial identifier: %w", ErrInvalid)
+	}
+	params, err := normalizeObject(spec.Params, true)
+	if err != nil {
+		return TrialSpec{}, err
+	}
+	spec.Params = params
+	return spec, nil
+}
+
 // Trial tracks its current attempt and accepted result.
 type Trial struct {
 	TrialKey
@@ -138,6 +199,13 @@ type Trial struct {
 
 // BucketName returns the trial table name.
 func (Trial) BucketName() string { return TableTrials }
+
+func (t Trial) validateAttempt(attemptID int64) error {
+	if t.AttemptID != attemptID {
+		return ErrStaleAttempt
+	}
+	return nil
+}
 
 func (t Trial) validateAssignment(sweep Sweep) error {
 	switch {
@@ -156,6 +224,29 @@ func (t Trial) validateAssignment(sweep Sweep) error {
 	}
 }
 
+func (t *Trial) finish(attempt Attempt, sweep *Sweep, now time.Time) error {
+	if attempt.State != AttemptCompleted && sweep.MaxAttempts <= 0 {
+		return fmt.Errorf("sweep retry limit: %w", ErrCorrupt)
+	}
+
+	t.Result = attempt.Result
+	t.Error = attempt.Error
+	t.UpdatedAt = now
+
+	switch {
+	case attempt.State == AttemptCompleted:
+		t.State = TrialCompleted
+		sweep.TerminalCount++
+	case attempt.AttemptID >= int64(sweep.MaxAttempts):
+		t.State = TrialFailed
+		sweep.TerminalCount++
+		sweep.FailedCount++
+	default:
+		t.State = TrialPending
+	}
+	return nil
+}
+
 // Attempt preserves one worker execution.
 type Attempt struct {
 	AttemptKey
@@ -170,6 +261,69 @@ type Attempt struct {
 
 // BucketName returns the attempt table name.
 func (Attempt) BucketName() string { return TableAttempts }
+
+// NormalizeResult validates a completion or failure.
+func (a Attempt) NormalizeResult() (Attempt, error) {
+	if err := a.AttemptKey.Validate(); err != nil {
+		return Attempt{}, err
+	}
+	switch a.State {
+	case AttemptCompleted:
+		result, err := normalizeObject(a.Result, false)
+		if err != nil {
+			return Attempt{}, err
+		}
+		a.Result = result
+	case AttemptFailed:
+		if a.Error == "" || !utf8.ValidString(a.Error) {
+			return Attempt{}, fmt.Errorf("failure message: %w", ErrInvalid)
+		}
+	default:
+		return Attempt{}, fmt.Errorf("result state: %w", ErrInvalid)
+	}
+	return a, nil
+}
+
+func (a Attempt) matchesResult(result Attempt) bool {
+	if a.State != result.State {
+		return false
+	}
+	switch a.State {
+	case AttemptCompleted:
+		return sameJSON(a.Result, result.Result)
+	case AttemptFailed:
+		return a.Error == result.Error
+	default:
+		return false
+	}
+}
+
+func (a Attempt) validateLive(trial Trial, now time.Time) error {
+	switch a.State {
+	case AttemptExpired:
+		return ErrLeaseExpired
+	case AttemptCompleted, AttemptFailed:
+		return ErrConflict
+	case AttemptRunning:
+		switch {
+		case trial.State != TrialRunning:
+			return fmt.Errorf("attempt state: %w", ErrCorrupt)
+		case !now.Before(a.LeaseExpiresAt):
+			return ErrLeaseExpired
+		default:
+			return nil
+		}
+	default:
+		return fmt.Errorf("attempt state: %w", ErrCorrupt)
+	}
+}
+
+func (a Attempt) validateExpiry(trial Trial) error {
+	if trial.State != TrialRunning || a.State != AttemptRunning {
+		return fmt.Errorf("expired attempt state: %w", ErrCorrupt)
+	}
+	return nil
+}
 
 // AcquireParams identifies a logical assignment request.
 type AcquireParams struct {
@@ -224,6 +378,19 @@ type Acquisition struct {
 type PageRequest struct {
 	Size  int
 	Token string
+}
+
+// Normalize validates and bounds the page size.
+func (p PageRequest) Normalize() (PageRequest, error) {
+	switch {
+	case p.Size < 0:
+		return PageRequest{}, fmt.Errorf("page size: %w", ErrInvalid)
+	case p.Size == 0:
+		p.Size = defaultPageSize
+	case p.Size > maxPageSize:
+		p.Size = maxPageSize
+	}
+	return p, nil
 }
 
 // Page contains records and an optional continuation token.
