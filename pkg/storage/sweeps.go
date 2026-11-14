@@ -62,18 +62,23 @@ func (s *Store) SealSweep(ctx context.Context, sweepID string) error {
 		return fmt.Errorf("sweep identifier: %w", ErrInvalid)
 	}
 	return s.update(ctx, func(tx *Tx, now time.Time) error {
-		sweep, err := tx.Sweeps.Get(sweepID)
-		switch {
-		case err != nil:
-			return err
-		case sweep.Sealed:
-			return nil
-		default:
-			sweep.Sealed = true
-			updateSweepState(&sweep, now)
-			return tx.Sweeps.Put(sweepID, sweep)
-		}
+		return sealSweep(tx, sweepID, now)
 	})
+}
+
+// sealSweep seals the latest sweep record in the current transaction.
+func sealSweep(tx *Tx, sweepID string, now time.Time) error {
+	sweep, err := tx.Sweeps.Get(sweepID)
+	switch {
+	case err != nil:
+		return err
+	case sweep.Sealed:
+		return nil
+	default:
+		sweep.Sealed = true
+		updateSweepState(&sweep, now)
+		return tx.Sweeps.Put(sweepID, sweep)
+	}
 }
 
 // updateSweepState finalizes sealed sweeps when all trials finish. It checks
