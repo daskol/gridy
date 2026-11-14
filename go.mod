@@ -8,6 +8,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/redpanda-data/protoc-gen-go-mcp v0.0.0-20260729122341-6334690a62b6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1

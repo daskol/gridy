@@ -1,0 +1,10 @@
+[dataset]
+window_size = [3, 5, 7, 9, 11]
+num_negatives = [3, 5, 7]
+
+[model]
+embed_size = [128, 256, 512]
+
+[optimizer]
+batch_size = [512, 1024, 2048, 4096]
+lr = [5e-3, 1e-3, 5e-4]

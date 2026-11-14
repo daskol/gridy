@@ -137,6 +137,9 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Coordinator state.
+/gridy.db
+
 # Ignore generated API files but keep package documentation.
 /pkg/api/queue/**
 /pkg/api/sweep/**
