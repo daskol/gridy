@@ -2,32 +2,12 @@ package storage
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
-)
-
-var (
-	bucketMeta     = []byte("meta")
-	bucketSweeps   = []byte("sweeps")
-	bucketWorkers  = []byte("workers")
-	bucketTrials   = []byte("trials")
-	bucketAttempts = []byte("attempts")
-	bucketRequests = []byte("requests")
-	bucketReady    = []byte("ready")
-	bucketLeases   = []byte("leases")
-)
-
-const (
-	schemaVersion        = uint64(1)
-	defaultLeaseDuration = 5 * time.Minute
-	defaultMaxAttempts   = 3
-	defaultPageSize      = 100
-	maxPageSize          = 1000
 )
 
 // Options configures the store.
@@ -44,7 +24,7 @@ type Store struct {
 	now func() time.Time
 }
 
-// TODO: var _ Storage = (*Store)(nil)
+// TODO(@daskol): var _ Storage = (*Store)(nil)
 
 // Open opens or creates a database with durable commits.
 func Open(path string, options *Options) (*Store, error) {
@@ -52,74 +32,37 @@ func Open(path string, options *Options) (*Store, error) {
 		return nil, fmt.Errorf("database path: %w", ErrInvalid)
 	}
 
-	clock := time.Now
-	timeout := time.Second
+	opts := Options{}
 	if options != nil {
-		if options.Timeout < 0 {
-			return nil, fmt.Errorf("open timeout: %w", ErrInvalid)
-		}
-		if options.Timeout > 0 {
-			timeout = options.Timeout
-		}
-		if options.Now != nil {
-			clock = options.Now
-		}
+		opts = *options
+	}
+	if opts.Timeout < 0 {
+		return nil, fmt.Errorf("open timeout: %w", ErrInvalid)
+	}
+	if opts.Timeout == 0 {
+		opts.Timeout = time.Second
+	}
+	if opts.Now == nil {
+		opts.Now = time.Now
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create database directory: %w", err)
 	}
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: timeout})
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: opts.Timeout})
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
+	if err := db.Update(initSchema); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize database: %w", err)
+	}
 
-	store := &Store{db: db, now: clock}
-	err = store.init(context.Background())
-	return store, err
+	return &Store{db: db, now: opts.Now}, nil
 }
 
-func (s *Store) init(ctx context.Context) error {
-	err := s.update(ctx, func(tx *bolt.Tx, _ time.Time) error {
-		buckets := [][]byte{
-			bucketMeta, bucketSweeps, bucketWorkers, bucketTrials,
-			bucketAttempts, bucketRequests, bucketReady, bucketLeases,
-		}
-
-		if meta := tx.Bucket(bucketMeta); meta != nil {
-			ver := meta.Get([]byte("version"))
-			if len(ver) != 8 || binary.BigEndian.Uint64(ver) != schemaVersion {
-				return ErrSchema
-			}
-
-			for _, name := range buckets {
-				if tx.Bucket(name) == nil {
-					return fmt.Errorf("missing bucket %s: %w", name, ErrCorrupt)
-				}
-			}
-			return nil
-		}
-
-		if key, _ := tx.Cursor().First(); key != nil {
-			return ErrSchema
-		}
-
-		for _, name := range buckets {
-			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
-				return err
-			}
-		}
-
-		return tx.Bucket(bucketMeta).Put(
-			[]byte("version"),
-			binary.BigEndian.AppendUint64(nil, schemaVersion),
-		)
-	})
-	if err != nil {
-		_ = s.db.Close()
-		return fmt.Errorf("initialize database: %w", err)
-	}
-	return nil
+func (s *Store) DB() *bolt.DB {
+	return s.db // TODO: Remove accessor and add new constructor.
 }
 
 // Close closes the database after active transactions finish.
@@ -127,7 +70,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) view(ctx context.Context, fn func(*bolt.Tx) error) error {
+func (s *Store) view(ctx context.Context, fn ViewFn) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -135,7 +78,7 @@ func (s *Store) view(ctx context.Context, fn func(*bolt.Tx) error) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := fn(tx); err != nil {
+		if err := fn(newTx(ctx, tx)); err != nil {
 			return err
 		}
 		return ctx.Err()
@@ -143,7 +86,7 @@ func (s *Store) view(ctx context.Context, fn func(*bolt.Tx) error) error {
 	return databaseError(err)
 }
 
-func (s *Store) update(ctx context.Context, fn func(*bolt.Tx, time.Time) error) error {
+func (s *Store) update(ctx context.Context, fn UpdateFn) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -151,7 +94,7 @@ func (s *Store) update(ctx context.Context, fn func(*bolt.Tx, time.Time) error) 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := fn(tx, s.now().UTC()); err != nil {
+		if err := fn(newTx(ctx, tx), s.now().UTC()); err != nil {
 			return err
 		}
 		return ctx.Err()

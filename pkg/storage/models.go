@@ -1,8 +1,12 @@
 package storage
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"math"
 	"time"
+	"unicode/utf8"
 )
 
 type SweepState string
@@ -66,10 +70,40 @@ type TrialKey struct {
 	TrialID string `json:"trial_id"`
 }
 
+// Bytes returns a new encoded trial key.
+func (key TrialKey) Bytes() []byte {
+	return tuple(key.SweepID, key.TrialID)
+}
+
+// Validate checks trial identifiers.
+func (key TrialKey) Validate() error {
+	if !validID(key.SweepID) || !validID(key.TrialID) {
+		return fmt.Errorf("trial key: %w", ErrInvalid)
+	}
+	return nil
+}
+
 // AttemptKey identifies one execution of a trial.
 type AttemptKey struct {
 	TrialKey
 	AttemptID int64 `json:"attempt_id"`
+}
+
+// Bytes returns a new encoded attempt key.
+func (key AttemptKey) Bytes() []byte {
+	return binary.BigEndian.
+		AppendUint64(key.TrialKey.Bytes(), uint64(key.AttemptID))
+}
+
+// Validate checks trial and attempt identifiers.
+func (key AttemptKey) Validate() error {
+	if err := key.TrialKey.Validate(); err != nil {
+		return err
+	}
+	if key.AttemptID <= 0 {
+		return fmt.Errorf("attempt identifier: %w", ErrInvalid)
+	}
+	return nil
 }
 
 // TrialSpec describes one parameter combination.
@@ -90,6 +124,23 @@ type Trial struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
+func (t Trial) validateAssignment(sweep Sweep) error {
+	switch {
+	case t.State != TrialPending:
+		return fmt.Errorf("ready trial state: %w", ErrCorrupt)
+	case t.SweepID != sweep.ID:
+		return fmt.Errorf("ready trial sweep: %w", ErrCorrupt)
+	case t.AttemptID < 0:
+		return fmt.Errorf("ready trial attempt: %w", ErrCorrupt)
+	case t.AttemptID == math.MaxInt64:
+		return fmt.Errorf("attempt id exhausted: %w", ErrConflict)
+	case t.AttemptID >= int64(sweep.MaxAttempts):
+		return fmt.Errorf("trial retry limit: %w", ErrCorrupt)
+	default:
+		return nil
+	}
+}
+
 // Attempt preserves one worker execution.
 type Attempt struct {
 	AttemptKey
@@ -107,6 +158,24 @@ type AcquireParams struct {
 	SweepID   string
 	WorkerID  string
 	RequestID string
+}
+
+func (p AcquireParams) Bytes() []byte {
+	return tuple(p.SweepID, p.WorkerID, p.RequestID)
+}
+
+// Validate checks acquisition identifiers.
+func (p AcquireParams) Validate() error {
+	switch {
+	case !validID(p.SweepID):
+		return fmt.Errorf("sweep identifier: %w", ErrInvalid)
+	case p.WorkerID == "" || !utf8.ValidString(p.WorkerID):
+		return fmt.Errorf("worker identifier: %w", ErrInvalid)
+	case p.RequestID == "" || !utf8.ValidString(p.RequestID):
+		return fmt.Errorf("request identifier: %w", ErrInvalid)
+	default:
+		return nil
+	}
 }
 
 type AcquisitionState string
@@ -140,4 +209,40 @@ type PageRequest struct {
 type Page[T any] struct {
 	Items         []T    `json:"items"`
 	NextPageToken string `json:"next_page_token,omitempty"`
+}
+
+func validID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, char := range id {
+		if (char < 'a' || char > 'z') &&
+			(char < 'A' || char > 'Z') &&
+			(char < '0' || char > '9') &&
+			char != '_' && char != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// tuple preserves byte order and separates arbitrary string components.
+func tuple(parts ...string) []byte {
+	var result []byte
+	for _, part := range parts {
+		for i := range len(part) {
+			if part[i] == 0 {
+				result = append(result, 0, 255)
+			} else {
+				result = append(result, part[i])
+			}
+		}
+		result = append(result, 0, 0)
+	}
+	return result
+}
+
+// tuple1 serializes string ID to bytes.
+func tuple1(id string) []byte {
+	return tuple(id)
 }
