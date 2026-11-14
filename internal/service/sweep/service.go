@@ -6,6 +6,7 @@ import (
 
 	sweep_api "github.com/daskol/gridy/pkg/api/sweep/v1"
 	"github.com/daskol/gridy/pkg/api/sweep/v1/sweepmcp"
+	"github.com/daskol/gridy/pkg/storage"
 	gw_runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	mcp_runtime "github.com/redpanda-data/protoc-gen-go-mcp/pkg/runtime"
 	"google.golang.org/grpc"
@@ -14,11 +15,12 @@ import (
 // SweepService serves sweep queries.
 type SweepService struct {
 	sweep_api.UnimplementedSweepServiceServer
+	store storage.Storage
 }
 
 // New creates a sweep service.
-func New() *SweepService {
-	return &SweepService{}
+func New(store storage.Storage) *SweepService {
+	return &SweepService{store: store}
 }
 
 // Register registers the gRPC service.

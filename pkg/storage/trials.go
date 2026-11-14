@@ -14,26 +14,9 @@ func (s *Store) AddTrials(ctx context.Context, sweepID string, specs []TrialSpec
 		return fmt.Errorf("sweep identifier: %w", ErrInvalid)
 	}
 
-	prepared := make([]TrialSpec, 0, len(specs))
-	positions := make(map[string]int, len(specs))
-	for _, spec := range specs {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		spec, err := spec.Normalize()
-		if err != nil {
-			return err
-		}
-
-		if index, exists := positions[spec.ID]; exists {
-			if !sameJSON(prepared[index].Params, spec.Params) {
-				return fmt.Errorf("trial %q parameters: %w", spec.ID, ErrConflict)
-			}
-			continue
-		}
-		positions[spec.ID] = len(prepared)
-		prepared = append(prepared, spec)
+	prepared, err := normalizeTrials(ctx, specs)
+	if err != nil {
+		return err
 	}
 
 	return s.update(ctx, func(tx *Tx, now time.Time) error {

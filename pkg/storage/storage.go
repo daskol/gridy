@@ -12,6 +12,9 @@ type Storage interface {
 	// CreateSweep stores a new sweep.
 	CreateSweep(ctx context.Context, spec SweepSpec) (Sweep, error)
 
+	// ImportSweeps imports sweeps.
+	ImportSweeps(ctx context.Context, imports []SweepImport) error
+
 	// AddTrials adds a batch and accepts identical retries.
 	AddTrials(ctx context.Context, sweepID string, specs []TrialSpec) error
 

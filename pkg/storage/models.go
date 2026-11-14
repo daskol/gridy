@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -99,6 +100,45 @@ func (spec SweepSpec) leaseDeadline(now time.Time) (time.Time, error) {
 	return now.Add(spec.LeaseDuration), nil
 }
 
+// SweepImport contains a search space and all of its generated trials.
+type SweepImport struct {
+	Spec   SweepSpec
+	Trials []TrialSpec
+}
+
+// Normalize validates the definition and merges identical trials.
+func (i SweepImport) Normalize(ctx context.Context) (SweepImport, error) {
+	spec, err := i.Spec.Normalize()
+	if err != nil {
+		return SweepImport{}, err
+	}
+	trials, err := normalizeTrials(ctx, i.Trials)
+	if err != nil {
+		return SweepImport{}, err
+	}
+	return SweepImport{Spec: spec, Trials: trials}, nil
+}
+
+func normalizeImports(ctx context.Context, imports []SweepImport) ([]SweepImport, error) {
+	prepared := make([]SweepImport, 0, len(imports))
+	seen := make(map[string]struct{}, len(imports))
+	for _, imp := range imports {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		item, err := imp.Normalize(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("sweep %q: %w", imp.Spec.ID, err)
+		}
+		if _, exists := seen[item.Spec.ID]; exists {
+			return nil, fmt.Errorf("duplicate sweep %q: %w", item.Spec.ID, ErrInvalid)
+		}
+		seen[item.Spec.ID] = struct{}{}
+		prepared = append(prepared, item)
+	}
+	return prepared, nil
+}
+
 // Sweep tracks trial generation and completion.
 type Sweep struct {
 	SweepSpec
@@ -113,6 +153,17 @@ type Sweep struct {
 
 // BucketName returns the sweep table name.
 func (Sweep) BucketName() string { return TableSweeps }
+
+func (s Sweep) validateImport(imp SweepImport) error {
+	switch {
+	case !sameJSON(s.Space, imp.Spec.Space):
+		return fmt.Errorf("search space changed: %w", ErrConflict)
+	case s.Sealed && s.TrialCount != uint64(len(imp.Trials)):
+		return fmt.Errorf("trial set changed: %w", ErrConflict)
+	default:
+		return nil
+	}
+}
 
 // Worker records coordinator contact times.
 type Worker struct {
@@ -185,6 +236,29 @@ func (spec TrialSpec) Normalize() (TrialSpec, error) {
 	return spec, nil
 }
 
+func normalizeTrials(ctx context.Context, specs []TrialSpec) ([]TrialSpec, error) {
+	prepared := make([]TrialSpec, 0, len(specs))
+	positions := make(map[string]int, len(specs))
+	for _, spec := range specs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		trial, err := spec.Normalize()
+		if err != nil {
+			return nil, fmt.Errorf("trial %q: %w", spec.ID, err)
+		}
+		if index, exists := positions[trial.ID]; exists {
+			if !sameJSON(prepared[index].Params, trial.Params) {
+				return nil, fmt.Errorf("trial %q parameters: %w", trial.ID, ErrConflict)
+			}
+			continue
+		}
+		positions[trial.ID] = len(prepared)
+		prepared = append(prepared, trial)
+	}
+	return prepared, nil
+}
+
 // Trial tracks its current attempt and accepted result.
 type Trial struct {
 	TrialKey
@@ -199,6 +273,13 @@ type Trial struct {
 
 // BucketName returns the trial table name.
 func (Trial) BucketName() string { return TableTrials }
+
+func (t Trial) validateImport(spec TrialSpec) error {
+	if !sameJSON(t.Params, spec.Params) {
+		return fmt.Errorf("trial %q parameters changed: %w", spec.ID, ErrConflict)
+	}
+	return nil
+}
 
 func (t Trial) validateAttempt(attemptID int64) error {
 	if t.AttemptID != attemptID {
