@@ -4,7 +4,14 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths: &python-paths
+      - '**/*.py'
+      - '.github/workflows/on-push.yml'
+      - '.pre-commit-config.yaml'
+      - 'gridy/**'
+      - 'pyproject.toml'
   pull_request:
+    paths: *python-paths
 
 permissions:
   contents: read
@@ -16,34 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - name: Pull all PR commits
-        if: github.event.pull_request
-        env:
-          PR_COMMITS: ${{ github.event.pull_request.commits }}
-        run: |
-          # Un-shallow refs.
-          git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
-          # Deepen topic branch; checkout topic branch.
-          git fetch origin "${GITHUB_REF}:${GITHUB_HEAD_REF}" \
-            --depth="$(( PR_COMMITS + 1 ))"
-          git checkout "$GITHUB_HEAD_REF"
-          # Fetch main for common origin.
-          git fetch origin main:main --depth=100
-
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           cache: 'pip'
           python-version: '3.14'
 
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
-        if: github.event.pull_request
-        with:
-          extra_args: >
-            --from-ref "$(git merge-base main HEAD)"
-            --to-ref "${{ github.head_ref }}"
-
-      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
-        if: '!github.event.pull_request'
 
   test:
     name: Testing with Python 3.14
@@ -91,12 +76,21 @@ jobs:
           restore-keys: |
             pip-ubuntu-26.04-${{ runner.arch }}-${{ steps.python.outputs.python-version }}-
 
-      - name: Install python dependencies
+      - name: Install build and test dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install -U aiohttp hyperopt numpy importlib_resources
-          python -m pip install -U build setuptools wheel
-          python -m pip install -U 'pytest>=8.2' pytest-cov
+          python -m pip install -U build 'pytest>=8.2' pytest-cov
+
+      - name: Build Python distributions
+        run: python -m build
+
+      - name: Install and check Python package
+        run: |
+          python -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          python -m pip check
+          python -I -c 'import gridy'
+          gridy --help
 
       - name: Test with pytest
         run: |
@@ -106,10 +100,10 @@ jobs:
             --cov-report=html:coverage/html/${PYTHON_TAG} \
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
             --cov=gridy \
-            --cov=ultraopt \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
 
       - name: Upload PyTest report for Python 3.14
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: pytest-report
@@ -118,4 +112,4 @@ jobs:
             pytest
 
       - name: Check typing
-        run: mypy gridy ultraopt || true
+        run: mypy gridy || true
