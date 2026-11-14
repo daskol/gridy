@@ -9,6 +9,12 @@ import (
 	"unicode/utf8"
 )
 
+// Record identifies the table for a stored value.
+type Record interface {
+	// BucketName returns the table name for the zero value.
+	BucketName() string
+}
+
 type SweepState string
 
 const (
@@ -57,12 +63,18 @@ type Sweep struct {
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
+// BucketName returns the sweep table name.
+func (Sweep) BucketName() string { return TableSweeps }
+
 // Worker records coordinator contact times.
 type Worker struct {
 	ID          string    `json:"worker_id"`
 	FirstSeenAt time.Time `json:"first_seen_at"`
 	LastSeenAt  time.Time `json:"last_seen_at"`
 }
+
+// BucketName returns the worker table name.
+func (Worker) BucketName() string { return TableWorkers }
 
 // TrialKey identifies a trial within a sweep.
 type TrialKey struct {
@@ -124,6 +136,9 @@ type Trial struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
+// BucketName returns the trial table name.
+func (Trial) BucketName() string { return TableTrials }
+
 func (t Trial) validateAssignment(sweep Sweep) error {
 	switch {
 	case t.State != TrialPending:
@@ -152,6 +167,9 @@ type Attempt struct {
 	Result         json.RawMessage `json:"result,omitempty"`
 	Error          string          `json:"error,omitempty"`
 }
+
+// BucketName returns the attempt table name.
+func (Attempt) BucketName() string { return TableAttempts }
 
 // AcquireParams identifies a logical assignment request.
 type AcquireParams struct {
@@ -192,6 +210,9 @@ type Assignment struct {
 	Params         json.RawMessage `json:"params"`
 	LeaseExpiresAt time.Time       `json:"lease_expires_at"`
 }
+
+// BucketName returns the assignment table name.
+func (Assignment) BucketName() string { return TableRequests }
 
 // Acquisition reports an assignment, waiting, or completion.
 type Acquisition struct {

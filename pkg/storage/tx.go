@@ -39,11 +39,11 @@ func newTx(ctx context.Context, raw *bbolt.Tx) *Tx {
 		Ready:  readyBucket{raw},
 		Leases: leaseBucket{raw},
 
-		Sweeps:   recordBucket[string, Sweep]{raw, TableSweeps, tuple1},
-		Workers:  recordBucket[string, Worker]{raw, TableWorkers, tuple1},
-		Trials:   recordBucket[TrialKey, Trial]{raw, TableTrials, TrialKey.Bytes},
-		Attempts: recordBucket[AttemptKey, Attempt]{raw, TableAttempts, AttemptKey.Bytes},
-		Requests: recordBucket[AcquireParams, Assignment]{raw, TableRequests, AcquireParams.Bytes},
+		Sweeps:   recordBucket[string, Sweep]{raw, tuple1},
+		Workers:  recordBucket[string, Worker]{raw, tuple1},
+		Trials:   recordBucket[TrialKey, Trial]{raw, TrialKey.Bytes},
+		Attempts: recordBucket[AttemptKey, Attempt]{raw, AttemptKey.Bytes},
+		Requests: recordBucket[AcquireParams, Assignment]{raw, AcquireParams.Bytes},
 	}
 }
 
@@ -52,22 +52,23 @@ func (tx *Tx) Context() context.Context {
 }
 
 // recordBucket stores typed records with encoded keys.
-type recordBucket[K, V any] struct {
-	tx   *bbolt.Tx
-	name string
-	key  func(K) []byte
+type recordBucket[K any, V Record] struct {
+	tx  *bbolt.Tx
+	key func(K) []byte
 }
 
 func (b recordBucket[K, V]) Get(key K) (V, error) {
-	return GetRecord[V](b.tx, b.name, b.key(key))
+	return GetRecord[V](b.tx, b.key(key))
 }
 
 func (b recordBucket[K, V]) Put(key K, value V) error {
-	return PutRecord(b.tx, b.name, b.key(key), value)
+	return PutRecord(b.tx, b.key(key), value)
 }
 
 func (b recordBucket[K, V]) Exists(key K) bool {
-	return b.tx.Bucket([]byte(b.name)).Get(b.key(key)) != nil
+	var record V
+	bucket := b.tx.Bucket([]byte(record.BucketName()))
+	return bucket != nil && bucket.Get(b.key(key)) != nil
 }
 
 // readyBucket indexes trials available for assignment.
@@ -90,7 +91,7 @@ func (b readyBucket) Next(sweepID string) (*Trial, error) {
 	if !bytes.HasPrefix(key, prefix) {
 		return nil, nil
 	}
-	trial, err := GetRecord[Trial](b.tx, TableTrials, key)
+	trial, err := GetRecord[Trial](b.tx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +128,7 @@ func (b leaseBucket) Expired(now time.Time, limit int) ([]Attempt, error) {
 			break
 		}
 
-		entry, err := GetRecord[Attempt](b.tx, TableAttempts, val)
+		entry, err := GetRecord[Attempt](b.tx, val)
 		if err != nil {
 			return nil, err
 		}
@@ -149,9 +150,10 @@ func leaseKey(attempt Attempt) []byte {
 	return append(deadlineKey(attempt.LeaseExpiresAt), attempt.Bytes()...)
 }
 
-// GetRecord reads a JSON record from a table.
-func GetRecord[T any](tx *bbolt.Tx, table string, key []byte) (T, error) {
-	record := *new(T)
+// GetRecord reads a JSON record. T must be a value type.
+func GetRecord[T Record](tx *bbolt.Tx, key []byte) (T, error) {
+	var record T
+	table := record.BucketName()
 	bucket := tx.Bucket([]byte(table))
 	if bucket == nil {
 		return record, fmt.Errorf("table %q: %w", table, ErrNotFound)
@@ -167,7 +169,8 @@ func GetRecord[T any](tx *bbolt.Tx, table string, key []byte) (T, error) {
 }
 
 // PutRecord writes a JSON record to a table.
-func PutRecord(tx *bbolt.Tx, table string, key []byte, record any) error {
+func PutRecord(tx *bbolt.Tx, key []byte, record Record) error {
+	table := record.BucketName()
 	bucket := tx.Bucket([]byte(table))
 	if bucket == nil {
 		return fmt.Errorf("table %q: %w", table, ErrNotFound)

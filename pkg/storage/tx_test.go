@@ -8,18 +8,21 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+type missingRecord struct{}
+
+func (missingRecord) BucketName() string { return "missing" }
+
 func TestRecordRejectsMissingTable(t *testing.T) {
 	t.Parallel()
 
 	s := NewSuite(t, 1, 0)
 	key := storage.TrialKey{SweepID: "sweep", TrialID: "trial"}
 	err := s.store.DB().Update(func(tx *bbolt.Tx) error {
-		trial, err := storage.GetRecord[storage.Trial](tx, "missing", key.Bytes())
+		record, err := storage.GetRecord[missingRecord](tx, key.Bytes())
 		require.ErrorIs(s, err, storage.ErrNotFound)
-		require.Zero(s, trial)
+		require.Zero(s, record)
 
-		trialZero := storage.Trial{TrialKey: key}
-		err = storage.PutRecord(tx, "missing", key.Bytes(), trialZero)
+		err = storage.PutRecord(tx, key.Bytes(), missingRecord{})
 		require.ErrorIs(s, err, storage.ErrNotFound)
 
 		bucket := tx.Bucket([]byte("missing"))
@@ -35,12 +38,12 @@ func TestAcquireRejectsMismatchedReadyTrial(t *testing.T) {
 	s := NewSuite(t, 1, 1)
 	key := storage.TrialKey{SweepID: "sweep", TrialID: "0"}
 	err := s.store.DB().Update(func(tx *bbolt.Tx) error {
-		trial, err := storage.GetRecord[storage.Trial](tx, storage.TableTrials, key.Bytes())
+		trial, err := storage.GetRecord[storage.Trial](tx, key.Bytes())
 		if err != nil {
 			return err
 		}
 		trial.TrialID = "wrong"
-		return storage.PutRecord(tx, storage.TableTrials, key.Bytes(), trial)
+		return storage.PutRecord(tx, key.Bytes(), trial)
 	})
 	require.NoError(s, err)
 
