@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/daskol/gridy/internal/searchspace"
 	"github.com/daskol/gridy/internal/service"
@@ -29,9 +30,9 @@ type ServeConfig struct {
 func NewServeCommand() *cobra.Command {
 	config := &ServeConfig{}
 	cmd := cobra.Command{
-		Use:   "serve search-space.toml [search-space.toml...]",
+		Use:   "serve [search-space.toml...]",
 		Short: "Run the gRPC, HTTP/JSON, and MCP servers.",
-		Args:  cobra.MinimumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.SearchSpaceFiles = args
 			return Serve(cmd.Context(), config)
@@ -53,10 +54,6 @@ func Serve(ctx context.Context, c *ServeConfig) error {
 		return nil
 	}
 
-	if len(c.SearchSpaceFiles) == 0 {
-		return errors.New("at least one search-space TOML file is required")
-	}
-
 	imports, err := searchspace.LoadFiles(ctx, c.SearchSpaceFiles)
 	if err != nil {
 		return err
@@ -67,8 +64,19 @@ func Serve(ctx context.Context, c *ServeConfig) error {
 	}
 	defer store.Close()
 
-	if err := store.ImportSweeps(ctx, imports); err != nil {
-		return fmt.Errorf("load search spaces: %w", err)
+	if len(imports) > 0 {
+		slog.InfoContext(ctx, "loading sweeps", "count", len(imports))
+		if err := store.ImportSweeps(ctx, imports); err != nil {
+			return fmt.Errorf("load search spaces: %w", err)
+		}
+	}
+
+	sweeps, err := store.ListSweeps(ctx, storage.PageRequest{Size: 1})
+	if err != nil {
+		return fmt.Errorf("list sweeps: %w", err)
+	}
+	if len(sweeps.Items) == 0 {
+		return errors.New("no sweeps found; provide a TOML file")
 	}
 
 	queueService := queueservice.New(store)
