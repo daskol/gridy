@@ -24,7 +24,7 @@ type Store struct {
 	now func() time.Time
 }
 
-// TODO(@daskol): var _ Storage = (*Store)(nil)
+var _ Storage = (*Store)(nil)
 
 // Open opens or creates a database with durable commits.
 func Open(path string, options *Options) (*Store, error) {
