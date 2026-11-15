@@ -1,5 +1,6 @@
 include go.mod go.sum buf.yaml buf.gen.yaml
 include scripts/install-go.sh
+recursive-include examples *.md *.py *.toml
 recursive-include api *.proto
 recursive-include cmd *.go
 recursive-include internal *.go
