@@ -149,8 +149,9 @@ async def _run_assignment(client: AsyncQueueClient, objective: ObjectiveFn,
         await gather(execution, heartbeat, return_exceptions=True)
 
 
-async def search(client: AsyncQueueClient, objective: ObjectiveFn,
-                 sweep_id: str, *, poll_interval: float = 5) -> None:
+async def search(fn: ObjectiveFn, sweep_id: str, *,
+                 client: AsyncQueueClient | None = None,
+                 poll_interval: float = 5) -> None:
     """Acquire and evaluate trials with background lease renewal.
 
     Results are sent as `{"objective": value}`. A heartbeat runs until
@@ -162,14 +163,25 @@ async def search(client: AsyncQueueClient, objective: ObjectiveFn,
 
     Objective exceptions are reported through `Fail` before acquiring more
     work. Transport or heartbeat failures stop the search and its active child
-    process.
+    process. If client is omitted, search creates and closes a queue client
+    with default settings. A supplied client remains owned by the caller.
     """
+    if client is not None:
+        await _search(fn, sweep_id, client=client, poll_interval=poll_interval)
+        return
+
+    async with AsyncQueueClient() as cli:
+        await _search(fn, sweep_id, client=cli, poll_interval=poll_interval)
+
+
+async def _search(fn: ObjectiveFn, sweep_id: str, *,
+                 client: AsyncQueueClient, poll_interval: float) -> None:
     if not math.isfinite(poll_interval) or poll_interval <= 0:
         raise ValueError('poll_interval must be positive and finite')
     while True:
         match await client.acquire(sweep_id):
             case Assignment() as assignment:
-                await _run_assignment(client, objective, assignment)
+                await _run_assignment(client, fn, assignment)
             case Wait():
                 await sleep(poll_interval)
             case Done():

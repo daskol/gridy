@@ -20,10 +20,12 @@ from argparse import REMAINDER, ArgumentParser, Namespace
 from asyncio import run
 from importlib.metadata import PackageNotFoundError, version as package_version
 from inspect import iscoroutinefunction
+from urllib.parse import urlsplit
 
 from aiohttp import ClientError
 
 from gridy.binary import find_binary
+from gridy.export import export_database, export_uri
 
 try:
     __version__ = package_version('gridy')
@@ -64,6 +66,13 @@ def serve(ns: Namespace) -> None:
 
 async def export(ns: Namespace) -> None:
     """Export completed trials from one sweep as JSONL."""
+    scheme = urlsplit(ns.source).scheme
+    if scheme in ('http', 'https', 'unix'):
+        await export_uri(ns.source, ns.output, sweep=ns.sweep)
+    elif not scheme or '://' not in ns.source or scheme == 'file':
+        export_database(ns.source, ns.output, sweep=ns.sweep)
+    else:
+        raise ValueError(f'Unsupported source URI scheme: {scheme}.')
 
 
 def main(argv: list[str] | None = None) -> None:
