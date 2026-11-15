@@ -111,7 +111,7 @@ test-command = "gridy serve --help"
 
 [tool.cibuildwheel.linux]
 before-all = "sh {package}/scripts/install-go.sh"
-environment = { PATH="/opt/gridy-go/bin:$PATH", GOOS="linux" }
+environment = { PATH="/usr/local/go/bin:$PATH", GOOS="linux" }
 manylinux-x86_64-image = "manylinux_2_28"
 manylinux-aarch64-image = "manylinux_2_28"
 
