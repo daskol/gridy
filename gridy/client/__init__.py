@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gridy.client.queue import (
-    APIError, Assignment, AsyncClient as AsyncQueueClient, Done, ProtocolError,
-    Wait)
+"""Clients for Gridy's HTTP/JSON service APIs."""
+
+from gridy.client.http import APIError, AsyncHTTPClient, ProtocolError
+from gridy.client.queue import Assignment, AsyncQueueClient, Done, Wait
 from gridy.client.sweep import AsyncSweepClient
 
-__all__ = ('APIError', 'Assignment', 'AsyncQueueClient', 'AsyncSweepClient',
-           'Done', 'ProtocolError', 'Wait')
+__all__ = ('APIError', 'Assignment', 'AsyncHTTPClient', 'AsyncQueueClient',
+           'AsyncSweepClient', 'Done', 'ProtocolError', 'Wait')
