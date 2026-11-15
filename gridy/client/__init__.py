@@ -14,9 +14,11 @@
 
 """Clients for Gridy's HTTP/JSON service APIs."""
 
+from gridy.client.client import AsyncClient
 from gridy.client.http import APIError, AsyncHTTPClient, ProtocolError
 from gridy.client.queue import Assignment, AsyncQueueClient, Done, Wait
 from gridy.client.sweep import AsyncSweepClient
 
-__all__ = ('APIError', 'Assignment', 'AsyncHTTPClient', 'AsyncQueueClient',
-           'AsyncSweepClient', 'Done', 'ProtocolError', 'Wait')
+__all__ = ('APIError', 'Assignment', 'AsyncClient', 'AsyncHTTPClient',
+           'AsyncQueueClient', 'AsyncSweepClient', 'Done', 'ProtocolError',
+           'Wait')
