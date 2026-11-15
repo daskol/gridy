@@ -134,7 +134,7 @@ class AsyncQueueClient(AsyncHTTPClient):
         if not isinstance(request_id, str) or not request_id:
             raise ValueError('request_id must be a nonempty string')
         data = await self._post(f'/v1/sweeps/{sweep_id}/trials:acquire', {
-            'workerId': self.worker_id, 'requestId': request_id,
+            'worker_id': self.worker_id, 'request_id': request_id,
         })
         outcomes = [key for key in ('assignment', 'wait', 'done')
                     if data.get(key) is not None]
@@ -152,26 +152,23 @@ class AsyncQueueClient(AsyncHTTPClient):
                 or not isinstance(params, dict)):
             raise ProtocolError('Invalid assignment name or params')
         try:
-            attempt_id = _attempt_id(assignment.get(
-                'attemptId', assignment.get('attempt_id')))
+            attempt_id = _attempt_id(assignment.get('attempt_id'))
         except ValueError as e:
             raise ProtocolError('Invalid assignment attempt_id') from e
         return Assignment(
             name=name, attempt_id=attempt_id, params=params,
-            lease_expires_at=_timestamp(assignment.get(
-                'leaseExpiresAt', assignment.get('lease_expires_at'))))
+            lease_expires_at=_timestamp(assignment.get('lease_expires_at')))
 
     def _attempt(self, name: str, attempt_id: int) -> dict[str, Any]:
         if not _TRIAL_NAME.fullmatch(name):
             raise ValueError('Invalid trial resource name')
-        return {'attemptId': str(_attempt_id(attempt_id))}
+        return {'attempt_id': str(_attempt_id(attempt_id))}
 
     async def renew_lease(self, name: str, attempt_id: int) -> datetime:
         """Extend an attempt's lease and return its new expiration time."""
         data = await self._post(f'/v1/{name}:renewLease',
                                 self._attempt(name, attempt_id))
-        return _timestamp(data.get('leaseExpiresAt',
-                                   data.get('lease_expires_at')))
+        return _timestamp(data.get('lease_expires_at'))
 
     async def complete(self, name: str, attempt_id: int,
                        result: dict[str, Any]) -> None:
