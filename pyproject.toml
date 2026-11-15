@@ -42,17 +42,12 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.8",
-    "importlib_resources; python_version>='3.7'",
-    "numpy>=2",
     "python-ulid>=2.7",
 ]
 
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = ["pytest>=8.2"]
-legacy = [
-    "hyperopt",  # TODO(@daskol): Should be optional.
-]
 
 [project.scripts]
 gridy = "gridy.cli:main"

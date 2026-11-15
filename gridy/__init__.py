@@ -12,35 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from importlib import import_module
-from typing import TYPE_CHECKING
+"""Client and worker runtime for hyperparameter searching with Gridy."""
 
 from gridy.client import (
     APIError, Assignment, AsyncClient, Done, ProtocolError, Wait)
 from gridy.worker import LeaseLostError, ObjectiveError, search
 
-if TYPE_CHECKING:
-    from gridy.grid_sampler import GridSampler
-    from ultraopt.worker import Client as RemoteSampler
-
-__all__ = ('APIError', 'Assignment', 'AsyncClient', 'Done', 'GridSampler',
-           'LeaseLostError', 'ObjectiveError', 'ProtocolError',
-           'RemoteSampler', 'Wait', 'search')
-
-_LEGACY_EXPORTS = {
-    'GridSampler': ('gridy.grid_sampler', 'GridSampler'),
-    'RemoteSampler': ('ultraopt.worker', 'Client'),
-    **{name: ('ultraopt', name) for name in (
-        'Coordinator', 'History', 'HyperOptSampler', 'PersistentSampler',
-        'Sampler', 'WAL', 'Worker', 'WorkerPool')},
-}
-
-
-def __getattr__(name):
-    # The HTTP client can be imported without loading the legacy samplers.
-    if name not in _LEGACY_EXPORTS:
-        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
-    module, attribute = _LEGACY_EXPORTS[name]
-    value = getattr(import_module(module), attribute)
-    globals()[name] = value
-    return value
+__all__ = ('APIError', 'Assignment', 'AsyncClient', 'Done', 'LeaseLostError',
+           'ObjectiveError', 'ProtocolError', 'Wait', 'search')
