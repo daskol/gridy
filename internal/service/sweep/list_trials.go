@@ -3,12 +3,31 @@ package sweep
 import (
 	"context"
 
+	"github.com/daskol/gridy/internal/service/util"
 	sweep_api "github.com/daskol/gridy/pkg/api/sweep/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/daskol/gridy/pkg/storage"
 )
 
 // ListTrials returns a page of trials.
-func (s *SweepService) ListTrials(context.Context, *sweep_api.ListTrialsRequest) (*sweep_api.ListTrialsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListTrials not implemented")
+func (s *SweepService) ListTrials(ctx context.Context, req *sweep_api.ListTrialsRequest) (*sweep_api.ListTrialsResponse, error) {
+	page, err := s.store.ListTrials(ctx, req.GetSweepId(), storage.PageRequest{
+		Size:  int(req.GetPageSize()),
+		Token: req.GetPageToken(),
+	})
+	if err != nil {
+		return nil, util.Error(err)
+	}
+
+	items := make([]*sweep_api.Trial, 0, len(page.Items))
+	for _, trial := range page.Items {
+		item, err := marshalTrial(trial)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return &sweep_api.ListTrialsResponse{
+		Trials:        items,
+		NextPageToken: page.NextPageToken,
+	}, nil
 }
