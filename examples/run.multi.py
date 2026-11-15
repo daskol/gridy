@@ -21,7 +21,7 @@ async def main():
     token = os.getenv('GRIDY_TOKEN')
     sid = 'search-space'
     async with AsyncClient(endpoint, token=token) as cli:
-        await search(objective, sid, client=cli.queue)
+        await search(objective, sid, client=cli)
 
 
 if __name__ == '__main__':

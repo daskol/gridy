@@ -16,9 +16,11 @@
 
 from gridy.client import (
     APIError, Assignment, AsyncClient, AsyncHTTPClient, AsyncQueueClient,
-    AsyncSweepClient, Done, ProtocolError, Wait)
+    AsyncQueueClientProtocol, AsyncSweepClient, AsyncSweepClientProtocol, Done,
+    ProtocolError, Wait)
 from gridy.worker import LeaseLostError, ObjectiveError, search
 
 __all__ = ('APIError', 'Assignment', 'AsyncClient', 'AsyncHTTPClient',
-           'AsyncQueueClient', 'AsyncSweepClient', 'Done', 'LeaseLostError',
+           'AsyncQueueClient', 'AsyncQueueClientProtocol', 'AsyncSweepClient',
+           'AsyncSweepClientProtocol', 'Done', 'LeaseLostError',
            'ObjectiveError', 'ProtocolError', 'Wait', 'search')

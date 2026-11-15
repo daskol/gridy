@@ -26,6 +26,7 @@ from gridy import AsyncClient, Wait
 
 TRIAL = {'trial_id': '1', 'params': {'lr': 0.001},
          'state': 'TRIAL_STATE_COMPLETED', 'result': {'objective': 0.87}}
+EXPIRATION = '2026-11-15T12:00:00Z'
 
 
 class TestClientConstruction(TestCase):
@@ -71,8 +72,13 @@ class TestAsyncClient(IsolatedAsyncioTestCase):
         auth = req.headers.get('Authorization')
         self.requests.append((req.method, req.path, auth, payload))
 
-        if req.method == 'POST':
+        res: dict[str, Any]
+        if req.path.endswith(':acquire'):
             res = {'wait': {}}
+        elif req.path.endswith(':renewLease'):
+            res = {'lease_expires_at': EXPIRATION}
+        elif req.method == 'POST':
+            res = {}
         else:
             res = {'trials': [TRIAL]}
         return web.json_response(res)
