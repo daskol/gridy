@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 from pytest import MonkeyPatch
 
+from gridy import binary as gridy_binary
 from gridy.binary import find_binary
 
 _LAUNCHER = b'#!/usr/bin/python\nfrom gridy.cli import main\nmain()\n'
@@ -34,8 +35,38 @@ def executable(path: Path, data: bytes = _BINARY) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def clear_override(monkeypatch):
+def clear_override(tmp_path, monkeypatch):
     monkeypatch.delenv('GRIDY_BINARY', raising=False)
+    monkeypatch.setattr(gridy_binary, '_BUNDLED_BINARY',
+                        tmp_path / 'package/bin/gridy')
+
+
+def test_finds_bundled_binary_without_path(monkeypatch):
+    binary = executable(gridy_binary._BUNDLED_BINARY)
+    monkeypatch.setenv('PATH', '')
+    resolved = find_binary()
+    assert resolved == binary
+
+
+def test_bundled_binary_takes_precedence_over_path(tmp_path, monkeypatch):
+    binary = executable(gridy_binary._BUNDLED_BINARY)
+    executable(tmp_path / 'bin/gridy')
+    monkeypatch.setenv('PATH', str(tmp_path / 'bin'))
+    resolved = find_binary()
+    assert resolved == binary
+
+
+@pytest.mark.parametrize('data, mode', [
+    (_BINARY, 0o644),
+    (_LAUNCHER, 0o755),
+])
+def test_invalid_bundled_binary_falls_back(data, mode, tmp_path, monkeypatch):
+    bundled = executable(gridy_binary._BUNDLED_BINARY, data)
+    bundled.chmod(mode)
+    binary = executable(tmp_path / 'go/gridy')
+    monkeypatch.setenv('PATH', str(binary.parent))
+    resolved = find_binary()
+    assert resolved == binary
 
 
 def test_module_invocation_skips_installed_launcher(tmp_path, monkeypatch):
@@ -61,6 +92,7 @@ def test_skips_symlink_to_running_launcher(tmp_path, monkeypatch):
 
 def test_explicit_override_takes_precedence(tmp_path, monkeypatch):
     binary = executable(tmp_path / 'custom/gridy-server')
+    executable(gridy_binary._BUNDLED_BINARY)
     executable(tmp_path / 'bin/gridy')
     monkeypatch.setenv('GRIDY_BINARY', str(binary))
     monkeypatch.setenv('PATH', str(tmp_path / 'bin'))
@@ -71,6 +103,7 @@ def test_explicit_override_takes_precedence(tmp_path, monkeypatch):
 @pytest.mark.parametrize('configured', ['', 'missing', 'not-executable'])
 def test_invalid_override_does_not_fall_back(configured: str, tmp_path: Path,
                                              monkeypatch: MonkeyPatch):
+    executable(gridy_binary._BUNDLED_BINARY)
     executable(tmp_path / 'bin/gridy')
     (tmp_path / 'bin/not-executable').write_text('not executable')
     monkeypatch.setenv('PATH', str(tmp_path / 'bin'))

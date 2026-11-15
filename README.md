@@ -27,6 +27,10 @@ hyperparameter optimization.
 
 ## Running the server
 
+Python wheels include the Go coordinator in `gridy/bin/gridy`. After installing
+a wheel, `gridy serve` runs this bundled executable. Set `GRIDY_BINARY` to use
+another executable; source checkouts also look for a Go `gridy` on `PATH`.
+
 ```sh
 go run ./cmd/gridy serve examples/search-space1.toml \
     --dsn gridy.db \
@@ -91,3 +95,28 @@ go run ./cmd/gridy serve examples/search-space.toml \
   --http-listen unix:///tmp/gridy-http.sock
 curl --unix-socket /tmp/gridy-http.sock http://localhost/healthz
 ```
+
+## Python Distributions
+
+Building from source requires the Go toolchain specified in `go.mod` and access
+to its module dependencies. Generate an sdist and a wheel with
+
+```sh
+python -m pip install build
+python -m build
+```
+
+The wheel build generates the Go API and compiles the coordinator with CGO
+disabled. The resulting wheel has a `py3-none-<platform>` tag for the target
+platform and includes the executable with its execution permissions.
+
+Set `GOOS` (`linux` or `darwin`) and `GOARCH` (`amd64` or `arm64`) to
+cross-compile. For example, build an Apple Silicon wheel from Linux with
+
+```sh
+GOOS=darwin GOARCH=arm64 python -m build --wheel
+```
+
+Code generators always run for the build host. The wheel's platform tag follows
+the Go target, independently of the Python interpreter running the build.
+Darwin wheels require macOS 13 or later, matching the Go 1.27 runtime.

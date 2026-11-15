@@ -45,7 +45,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
-test = ["pytest>=8.2"]
+test = ["build>=1.2", "pytest>=8.2", "setuptools>=77"]
 
 [project.scripts]
 gridy = "gridy.cli:main"
@@ -68,7 +68,7 @@ plugins = []
 [tool.pytest.ini_options]
 minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"
-testpaths = ["gridy"]
+testpaths = ["gridy", "tests"]
 markers = [
     "slow: slow tests (deselect with '-m \"not slow\"')",
 ]
@@ -94,13 +94,29 @@ max-line-length = 79
 
 [tool.setuptools]
 include-package-data = false
-platforms = ["Linux"]
-zip-safe = true
+platforms = ["Linux", "MacOS"]
+zip-safe = false
 
 [tool.setuptools.packages.find]
 include = ["gridy*"]
 
 [tool.setuptools.package-data]
+gridy = ["bin/gridy"]
+
+[tool.cibuildwheel]
+# The Go executable has no Python ABI, so one interpreter builds each wheel.
+build = ["cp312-manylinux_*", "cp312-macosx_*"]
+archs = ["native"]
+test-command = "gridy serve --help"
+
+[tool.cibuildwheel.linux]
+before-all = "sh {package}/scripts/install-go.sh"
+environment = { PATH="/usr/local/go/bin:$PATH", GOOS="linux" }
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+environment = { GOOS="darwin", MACOSX_DEPLOYMENT_TARGET="13.0" }
 
 [tool.yapf]
 based_on_style = "pep8"

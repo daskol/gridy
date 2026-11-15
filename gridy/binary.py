@@ -22,6 +22,7 @@ from shutil import which
 
 _CONSOLE_SCRIPT = re.compile(
     rb'\b(?:from\s+gridy\.cli\s+import\b|import\s+gridy\.cli\b)')
+_BUNDLED_BINARY = Path(__file__).with_name('bin') / 'gridy'
 
 
 def _is_launcher(path: Path) -> bool:
@@ -42,7 +43,7 @@ def _is_launcher(path: Path) -> bool:
 
 
 def find_binary() -> Path:
-    """Resolve `GRIDY_BINARY` or find a non-launcher gridy on PATH."""
+    """Resolve `GRIDY_BINARY`, the bundled executable, or gridy on PATH."""
     if (configured := os.environ.get('GRIDY_BINARY')) is not None:
         if not configured or (resolved := which(configured)) is None:
             raise FileNotFoundError(
@@ -55,6 +56,11 @@ def find_binary() -> Path:
                 'Python CLI: set it to the Go binary instead.')
         return candidate.resolve()
 
+    if (_BUNDLED_BINARY.is_file() and
+        os.access(_BUNDLED_BINARY, os.X_OK) and
+        not _is_launcher(_BUNDLED_BINARY)):
+        return _BUNDLED_BINARY.resolve()
+
     for directory in os.get_exec_path():
         candidate = Path(directory) / 'gridy'
         if (candidate.is_file() and
@@ -63,4 +69,5 @@ def find_binary() -> Path:
             return candidate.resolve()
 
     raise FileNotFoundError(
-        'Gridy Go binary was not found on PATH. Set GRIDY_BINARY to its path.')
+        'Gridy Go binary was not found in the package or on PATH. '
+        'Set GRIDY_BINARY to its path.')
