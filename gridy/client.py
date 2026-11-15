@@ -25,14 +25,14 @@ Use one client per worker process and close it with an async context manager::
         elif isinstance(outcome, Done):
             ...  # The sweep has finished.
 
-Endpoints support HTTP(S) and unix:///absolute/socket/path. A supplied token
-is sent in the Authorization header as a Bearer token. Assignment fields
-name and attempt_id identify the attempt in renew_lease, complete, and fail.
-The latter two methods are alternative ways to finish an attempt.
+Endpoints support HTTP(S) and unix:///absolute/socket/path. A supplied token is
+sent in the Authorization header as a Bearer token. Assignment fields name and
+`attempt_id` identify the attempt in renew_lease, complete, and fail. The
+latter two methods are alternative ways to finish an attempt.
 
 This client implements queue requests. The worker runtime is responsible for
 objective execution and background lease renewal. After an uncertain acquire
-failure beyond the retry budget, reuse an explicitly supplied request_id to
+failure beyond the retry budget, reuse an explicitly supplied `request_id` to
 recover the original assignment. PID, hostname, and code digest metadata are
 reserved for a later iteration.
 """
@@ -64,7 +64,7 @@ class ProtocolError(RuntimeError):
 
 
 class APIError(RuntimeError):
-    """An HTTP failure, including the gateway's error code and details."""
+    """An HTTP failure with the gateway's error code and details."""
 
     def __init__(self, status: int, message: str, *,
                  code: int | None = None, details: Any = None):
@@ -77,7 +77,7 @@ class APIError(RuntimeError):
 
 @dataclass(frozen=True)
 class Assignment:
-    """An assigned trial attempt. Preserve name and attempt_id verbatim."""
+    """An assigned trial attempt. Preserve name and `attempt_id` verbatim."""
 
     name: str
     attempt_id: int
@@ -87,7 +87,7 @@ class Assignment:
 
 @dataclass(frozen=True)
 class Wait:
-    """No assignment is available yet; try again with a new request ID."""
+    """No assignment is available yet. Try again with a new request ID."""
 
 
 @dataclass(frozen=True)
@@ -120,7 +120,7 @@ class AsyncClient:
     generated once or an explicitly supplied ULID. HTTP sessions are created
     lazily in the running event loop and owned by the client.
 
-    Transient failures are retried at most max_retries times, preserving the
+    Transient failures are retried at most `max_retries` times, preserving the
     serialized request. Cancellation is propagated immediately. Supply an
     explicit `request_id` to acquire when retrying beyond this client's retry
     budget. Heartbeats and polling after Wait belong to the worker runtime.
