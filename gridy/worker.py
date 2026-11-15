@@ -32,7 +32,7 @@ from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from typing import Any
 
-from gridy.client import Assignment, AsyncClient, Done, Wait
+from gridy.client import Assignment, AsyncQueueClient, Done, Wait
 
 __all__ = ('LeaseLostError', 'ObjectiveError', 'ObjectiveFn', 'search')
 
@@ -100,7 +100,8 @@ async def _evaluate(objective: ObjectiveFn, params: dict[str, Any]) -> float:
         reader.close()
 
 
-async def _renew_lease(client: AsyncClient, assignment: Assignment) -> None:
+async def _renew_lease(client: AsyncQueueClient,
+                       assignment: Assignment) -> None:
     expires_at = assignment.lease_expires_at
     loop = get_running_loop()
     while True:
@@ -118,7 +119,7 @@ async def _renew_lease(client: AsyncClient, assignment: Assignment) -> None:
                 f'Lease renewal timed out for {assignment.name}.') from e
 
 
-async def _execute(client: AsyncClient, objective: ObjectiveFn,
+async def _execute(client: AsyncQueueClient, objective: ObjectiveFn,
                    assignment: Assignment) -> None:
     try:
         value = await _evaluate(objective, assignment.params)
@@ -129,7 +130,7 @@ async def _execute(client: AsyncClient, objective: ObjectiveFn,
                           {'objective': value})
 
 
-async def _run_assignment(client: AsyncClient, objective: ObjectiveFn,
+async def _run_assignment(client: AsyncQueueClient, objective: ObjectiveFn,
                           assignment: Assignment) -> None:
     if assignment.lease_expires_at <= datetime.now(UTC):
         raise LeaseLostError(f'Lease expired for {assignment.name}.')
@@ -148,8 +149,8 @@ async def _run_assignment(client: AsyncClient, objective: ObjectiveFn,
         await gather(execution, heartbeat, return_exceptions=True)
 
 
-async def search(client: AsyncClient, objective: ObjectiveFn, sweep_id: str, *,
-                 poll_interval: float = 5) -> None:
+async def search(client: AsyncQueueClient, objective: ObjectiveFn,
+                 sweep_id: str, *, poll_interval: float = 5) -> None:
     """Acquire and evaluate trials with background lease renewal.
 
     Results are sent as `{"objective": value}`. A heartbeat runs until
