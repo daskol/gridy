@@ -1,14 +1,13 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gridy"
 version = "0.0.0"
-description = """
-A lightweight library for coordination grid search and hyper search
-experiments."""
-license = {text = "Apache-2.0"}
+description = "A lightweight library for coordinating hyperparameter search."
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">= 3.12"
 authors = [
     {name = "Daniel Bershatsky", email = "daniel.bershatsky@gmail.com"},
@@ -22,7 +21,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Science/Research",
-    "License :: Other/Proprietary License",
     "Natural Language :: English",
     "Operating System :: POSIX",
     "Operating System :: POSIX :: Linux",
@@ -42,17 +40,12 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.8",
-    "importlib_resources; python_version>='3.7'",
-    "numpy>=2",
     "python-ulid>=2.7",
 ]
 
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = ["pytest>=8.2"]
-legacy = [
-    "hyperopt",  # TODO(@daskol): Should be optional.
-]
 
 [project.scripts]
 gridy = "gridy.cli:main"
@@ -108,9 +101,6 @@ zip-safe = true
 include = ["gridy*"]
 
 [tool.setuptools.package-data]
-
-[tool.setuptools_scm]
-write_to = "gridy/version.py"
 
 [tool.yapf]
 based_on_style = "pep8"
