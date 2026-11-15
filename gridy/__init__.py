@@ -17,13 +17,15 @@ from typing import TYPE_CHECKING
 
 from gridy.client import (
     APIError, Assignment, AsyncClient, Done, ProtocolError, Wait)
+from gridy.worker import LeaseLostError, ObjectiveError, search
 
 if TYPE_CHECKING:
     from gridy.grid_sampler import GridSampler
     from ultraopt.worker import Client as RemoteSampler
 
 __all__ = ('APIError', 'Assignment', 'AsyncClient', 'Done', 'GridSampler',
-           'ProtocolError', 'RemoteSampler', 'Wait')
+           'LeaseLostError', 'ObjectiveError', 'ProtocolError',
+           'RemoteSampler', 'Wait', 'search')
 
 _LEGACY_EXPORTS = {
     'GridSampler': ('gridy.grid_sampler', 'GridSampler'),
