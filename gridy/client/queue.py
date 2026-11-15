@@ -16,7 +16,7 @@
 
 Use one client per worker process and close it with an async context manager::
 
-    async with AsyncClient(endpoint, token=token) as client:
+    async with AsyncQueueClient(endpoint, token=token) as client:
         outcome = await client.acquire('experiment-1')
         if isinstance(outcome, Assignment):
             print(outcome.name, outcome.attempt_id, outcome.params)
@@ -37,42 +37,21 @@ recover the original assignment. PID, hostname, and code digest metadata are
 reserved for a later iteration.
 """
 
-import asyncio
-import json
-import math
-import random
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Self
-from urllib.parse import unquote, urlsplit
+from typing import Any
 
-import aiohttp
 from ulid import ULID
 
-__all__ = ('APIError', 'Assignment', 'AsyncClient', 'Done', 'ProtocolError',
-           'Wait')
+from gridy.client.http import (
+    DEFAULT_ENDPOINT, APIError, AsyncHTTPClient, ProtocolError)
 
-DEFAULT_ENDPOINT = 'http://127.0.0.1:8080'
+__all__ = ('APIError', 'Assignment', 'AsyncQueueClient', 'Done',
+           'ProtocolError', 'Wait')
+
 _IDENTIFIER = r'[A-Za-z0-9_-]+'
 _TRIAL_NAME = re.compile(rf'sweeps/{_IDENTIFIER}/trials/{_IDENTIFIER}')
-_RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
-
-
-class ProtocolError(RuntimeError):
-    """The coordinator returned a response outside the queue contract."""
-
-
-class APIError(RuntimeError):
-    """An HTTP failure with the gateway's error code and details."""
-
-    def __init__(self, status: int, message: str, *,
-                 code: int | None = None, details: Any = None):
-        super().__init__(f'HTTP {status}: {message}')
-        self.status = status
-        self.message = message
-        self.code = code
-        self.details = details
 
 
 @dataclass(frozen=True)
@@ -101,8 +80,8 @@ def _timestamp(value: Any) -> datetime:
         if timestamp.tzinfo is None:
             raise ValueError('missing timezone')
         return timestamp
-    except (TypeError, ValueError) as error:
-        raise ProtocolError('Invalid lease_expires_at timestamp') from error
+    except (TypeError, ValueError) as e:
+        raise ProtocolError('Invalid lease_expires_at timestamp') from e
 
 
 def _attempt_id(value: Any) -> int:
@@ -113,7 +92,7 @@ def _attempt_id(value: Any) -> int:
     return value
 
 
-class AsyncClient:
+class AsyncQueueClient(AsyncHTTPClient):
     """One worker's HTTP connection pool and identity.
 
     Construct a client inside each worker process. Its `worker_id` is a ULID
@@ -130,107 +109,14 @@ class AsyncClient:
                  worker_id: str | None = None, token: str | None = None,
                  timeout: float = 30, max_retries: int = 3,
                  retry_backoff: float = 0.5):
-        if not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError('Timeout must be positive and finite.')
-        if type(max_retries) is not int or max_retries < 0:
-            raise ValueError('Max retries must be a nonnegative integer.')
-        if not math.isfinite(retry_backoff) or retry_backoff < 0:
-            raise ValueError('Retry backoff must be nonnegative and finite.')
-
-        self._unix_path: str | None = None
-        addr = urlsplit(endpoint)
-        if addr.query or addr.fragment:
-            raise ValueError('Endpoint must not contain a query or fragment.')
-        if addr.scheme == 'unix':
-            if addr.netloc or not addr.path.startswith('/'):
-                raise ValueError(
-                    'Unix socket endpoint needs an absolute path.')
-            self._unix_path = unquote(addr.path)
-            self._base_url = 'http://localhost'
-        elif (addr.scheme in ('http', 'https') and addr.hostname
-              and addr.username is None and addr.password is None):
-            self._base_url = endpoint.rstrip('/')
-        else:
-            raise ValueError('Endpoint must be an HTTP URL or unix:///path.')
+        super().__init__(endpoint, token=token, timeout=timeout,
+                         max_retries=max_retries, retry_backoff=retry_backoff)
 
         self.worker_id: str
         if worker_id is None:
             self.worker_id = str(ULID())
         else:
             self.worker_id = str(ULID.from_str(worker_id))
-
-        self._headers = {'Accept': 'application/json',
-                         'Content-Type': 'application/json'}
-        if token is not None:
-            self._headers['Authorization'] = f'Bearer {token}'
-
-        self._timeout = aiohttp.ClientTimeout(total=timeout)
-        self._max_retries = max_retries
-        self._retry_backoff = retry_backoff
-        self._session: aiohttp.ClientSession | None = None
-        self._closed = False
-
-    def _get_session(self) -> aiohttp.ClientSession:
-        if self._closed:
-            raise RuntimeError('Client is closed.')
-        if self._session is None:
-            connector = (aiohttp.UnixConnector(path=self._unix_path)
-                         if self._unix_path is not None else None)
-            self._session = aiohttp.ClientSession(
-                connector=connector, headers=self._headers,
-                timeout=self._timeout)
-        return self._session
-
-    async def __aenter__(self) -> Self:
-        self._get_session()
-        return self
-
-    async def __aexit__(self, exc_type, exc, traceback) -> None:
-        await self.close()
-
-    async def close(self) -> None:
-        """Release connections (closing an unused client is also safe)."""
-        self._closed = True
-        if self._session is not None:
-            await self._session.close()
-
-    async def _post(self, path: str,
-                    payload: dict[str, Any]) -> dict[str, Any]:
-        # Serialize once so retries cannot observe mutations of result data.
-        body = json.dumps(payload, allow_nan=False)
-        for attempt in range(self._max_retries):
-            try:
-                return await self._post_once(path, body)
-            except APIError as error:
-                if error.status not in _RETRY_STATUSES:
-                    raise
-            except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError,
-                    asyncio.TimeoutError):
-                pass
-            delay = min(self._retry_backoff * 2**attempt, 30)
-            await asyncio.sleep(random.uniform(0, delay))
-        return await self._post_once(path, body)
-
-    async def _post_once(self, path: str, body: str) -> dict[str, Any]:
-        session = self._get_session()
-        async with session.post(self._base_url + path, data=body,
-                                allow_redirects=False) as response:
-            status = response.status
-            raw = await response.text()
-
-        try:
-            data = json.loads(raw)
-        except ValueError:
-            data = None
-
-        if 200 <= status < 300:
-            if not isinstance(data, dict):
-                raise ProtocolError('Expected a JSON object')
-            return data
-        if not isinstance(data, dict):
-            raise APIError(status, raw)
-        raise APIError(status, str(data.get('message', raw)),
-                       code=data.get('code'), details=data.get('details'))
 
     async def acquire(self, sweep_id: str, *,
                       request_id: str | None = None
@@ -248,7 +134,7 @@ class AsyncClient:
         if not isinstance(request_id, str) or not request_id:
             raise ValueError('request_id must be a nonempty string')
         data = await self._post(f'/v1/sweeps/{sweep_id}/trials:acquire', {
-            'workerId': self.worker_id, 'requestId': request_id,
+            'worker_id': self.worker_id, 'request_id': request_id,
         })
         outcomes = [key for key in ('assignment', 'wait', 'done')
                     if data.get(key) is not None]
@@ -266,26 +152,23 @@ class AsyncClient:
                 or not isinstance(params, dict)):
             raise ProtocolError('Invalid assignment name or params')
         try:
-            attempt_id = _attempt_id(assignment.get(
-                'attemptId', assignment.get('attempt_id')))
-        except ValueError as error:
-            raise ProtocolError('Invalid assignment attempt_id') from error
+            attempt_id = _attempt_id(assignment.get('attempt_id'))
+        except ValueError as e:
+            raise ProtocolError('Invalid assignment attempt_id') from e
         return Assignment(
             name=name, attempt_id=attempt_id, params=params,
-            lease_expires_at=_timestamp(assignment.get(
-                'leaseExpiresAt', assignment.get('lease_expires_at'))))
+            lease_expires_at=_timestamp(assignment.get('lease_expires_at')))
 
     def _attempt(self, name: str, attempt_id: int) -> dict[str, Any]:
         if not _TRIAL_NAME.fullmatch(name):
             raise ValueError('Invalid trial resource name')
-        return {'attemptId': str(_attempt_id(attempt_id))}
+        return {'attempt_id': str(_attempt_id(attempt_id))}
 
     async def renew_lease(self, name: str, attempt_id: int) -> datetime:
         """Extend an attempt's lease and return its new expiration time."""
         data = await self._post(f'/v1/{name}:renewLease',
                                 self._attempt(name, attempt_id))
-        return _timestamp(data.get('leaseExpiresAt',
-                                   data.get('lease_expires_at')))
+        return _timestamp(data.get('lease_expires_at'))
 
     async def complete(self, name: str, attempt_id: int,
                        result: dict[str, Any]) -> None:

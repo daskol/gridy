@@ -32,7 +32,8 @@ from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from typing import Any
 
-from gridy.client import Assignment, AsyncClient, Done, Wait
+from gridy.client import (
+    Assignment, AsyncQueueClient, AsyncQueueClientProtocol, Done, Wait)
 
 __all__ = ('LeaseLostError', 'ObjectiveError', 'ObjectiveFn', 'search')
 
@@ -100,7 +101,8 @@ async def _evaluate(objective: ObjectiveFn, params: dict[str, Any]) -> float:
         reader.close()
 
 
-async def _renew_lease(client: AsyncClient, assignment: Assignment) -> None:
+async def _renew_lease(client: AsyncQueueClientProtocol,
+                       assignment: Assignment) -> None:
     expires_at = assignment.lease_expires_at
     loop = get_running_loop()
     while True:
@@ -118,7 +120,7 @@ async def _renew_lease(client: AsyncClient, assignment: Assignment) -> None:
                 f'Lease renewal timed out for {assignment.name}.') from e
 
 
-async def _execute(client: AsyncClient, objective: ObjectiveFn,
+async def _execute(client: AsyncQueueClientProtocol, objective: ObjectiveFn,
                    assignment: Assignment) -> None:
     try:
         value = await _evaluate(objective, assignment.params)
@@ -129,7 +131,8 @@ async def _execute(client: AsyncClient, objective: ObjectiveFn,
                           {'objective': value})
 
 
-async def _run_assignment(client: AsyncClient, objective: ObjectiveFn,
+async def _run_assignment(client: AsyncQueueClientProtocol,
+                           objective: ObjectiveFn,
                           assignment: Assignment) -> None:
     if assignment.lease_expires_at <= datetime.now(UTC):
         raise LeaseLostError(f'Lease expired for {assignment.name}.')
@@ -148,7 +151,8 @@ async def _run_assignment(client: AsyncClient, objective: ObjectiveFn,
         await gather(execution, heartbeat, return_exceptions=True)
 
 
-async def search(client: AsyncClient, objective: ObjectiveFn, sweep_id: str, *,
+async def search(fn: ObjectiveFn, sweep_id: str, *,
+                 client: AsyncQueueClientProtocol | None = None,
                  poll_interval: float = 5) -> None:
     """Acquire and evaluate trials with background lease renewal.
 
@@ -161,14 +165,26 @@ async def search(client: AsyncClient, objective: ObjectiveFn, sweep_id: str, *,
 
     Objective exceptions are reported through `Fail` before acquiring more
     work. Transport or heartbeat failures stop the search and its active child
-    process.
+    process. If client is omitted, search creates and closes a queue client
+    with default settings. A supplied client remains owned by the caller.
     """
+    if client is not None:
+        await _search(fn, sweep_id, client=client, poll_interval=poll_interval)
+        return
+
+    async with AsyncQueueClient() as cli:
+        await _search(fn, sweep_id, client=cli, poll_interval=poll_interval)
+
+
+async def _search(fn: ObjectiveFn, sweep_id: str, *,
+                 client: AsyncQueueClientProtocol,
+                 poll_interval: float) -> None:
     if not math.isfinite(poll_interval) or poll_interval <= 0:
         raise ValueError('poll_interval must be positive and finite')
     while True:
         match await client.acquire(sweep_id):
             case Assignment() as assignment:
-                await _run_assignment(client, objective, assignment)
+                await _run_assignment(client, fn, assignment)
             case Wait():
                 await sleep(poll_interval)
             case Done():

@@ -15,8 +15,12 @@
 """Client and worker runtime for hyperparameter searching with Gridy."""
 
 from gridy.client import (
-    APIError, Assignment, AsyncClient, Done, ProtocolError, Wait)
+    APIError, Assignment, AsyncClient, AsyncHTTPClient, AsyncQueueClient,
+    AsyncQueueClientProtocol, AsyncSweepClient, AsyncSweepClientProtocol, Done,
+    ProtocolError, Wait)
 from gridy.worker import LeaseLostError, ObjectiveError, search
 
-__all__ = ('APIError', 'Assignment', 'AsyncClient', 'Done', 'LeaseLostError',
+__all__ = ('APIError', 'Assignment', 'AsyncClient', 'AsyncHTTPClient',
+           'AsyncQueueClient', 'AsyncQueueClientProtocol', 'AsyncSweepClient',
+           'AsyncSweepClientProtocol', 'Done', 'LeaseLostError',
            'ObjectiveError', 'ProtocolError', 'Wait', 'search')
