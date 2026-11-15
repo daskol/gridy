@@ -3,12 +3,19 @@ package sweep
 import (
 	"context"
 
+	"github.com/daskol/gridy/internal/service/storageapi"
 	sweep_api "github.com/daskol/gridy/pkg/api/sweep/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/daskol/gridy/pkg/storage"
 )
 
 // GetTrial returns a trial.
-func (s *SweepService) GetTrial(context.Context, *sweep_api.GetTrialRequest) (*sweep_api.Trial, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetTrial not implemented")
+func (s *SweepService) GetTrial(ctx context.Context, req *sweep_api.GetTrialRequest) (*sweep_api.Trial, error) {
+	trial, err := s.store.GetTrial(ctx, storage.TrialKey{
+		SweepID: req.GetSweepId(),
+		TrialID: req.GetTrialId(),
+	})
+	if err != nil {
+		return nil, storageapi.Error(err)
+	}
+	return marshalTrial(trial)
 }
