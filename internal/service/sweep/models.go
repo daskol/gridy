@@ -1,7 +1,7 @@
 package sweep
 
 import (
-	"github.com/daskol/gridy/internal/service/storageapi"
+	"github.com/daskol/gridy/internal/service/util"
 	sweep_api "github.com/daskol/gridy/pkg/api/sweep/v1"
 	"github.com/daskol/gridy/pkg/storage"
 	"google.golang.org/grpc/codes"
@@ -10,7 +10,7 @@ import (
 )
 
 func marshalSweep(sweep storage.Sweep) (*sweep_api.Sweep, error) {
-	space, err := storageapi.Object(sweep.Space)
+	space, err := util.Object(sweep.Space)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +52,11 @@ func marshalSweeps(sweeps []storage.Sweep) ([]*sweep_api.Sweep, error) {
 }
 
 func marshalTrial(trial storage.Trial) (*sweep_api.Trial, error) {
-	params, err := storageapi.Object(trial.Params)
+	params, err := util.Object(trial.Params)
 	if err != nil {
 		return nil, err
 	}
-	result, err := storageapi.Object(trial.Result)
+	result, err := util.Object(trial.Result)
 	if err != nil {
 		return nil, err
 	}

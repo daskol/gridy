@@ -3,7 +3,7 @@ package queue
 import (
 	"context"
 
-	"github.com/daskol/gridy/internal/service/storageapi"
+	"github.com/daskol/gridy/internal/service/util"
 	"github.com/daskol/gridy/pkg/api/queue/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -12,7 +12,7 @@ import (
 
 // Complete durably records the result of an active attempt.
 func (s *QueueService) Complete(ctx context.Context, req *queue.CompleteRequest) (*queue.CompleteResponse, error) {
-	key, err := storageapi.AttemptKey(req.GetName(), req.GetAttemptId())
+	key, err := util.AttemptKey(req.GetName(), req.GetAttemptId())
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func (s *QueueService) Complete(ctx context.Context, req *queue.CompleteRequest)
 		return nil, status.Error(codes.InvalidArgument, "invalid result JSON")
 	}
 	if err := s.store.Complete(ctx, key, result); err != nil {
-		return nil, storageapi.Error(err)
+		return nil, util.Error(err)
 	}
 	return &queue.CompleteResponse{}, nil
 }

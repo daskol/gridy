@@ -3,7 +3,7 @@ package sweep
 import (
 	"context"
 
-	"github.com/daskol/gridy/internal/service/storageapi"
+	"github.com/daskol/gridy/internal/service/util"
 	sweep_api "github.com/daskol/gridy/pkg/api/sweep/v1"
 	"github.com/daskol/gridy/pkg/storage"
 )
@@ -15,7 +15,7 @@ func (s *SweepService) ListSweeps(ctx context.Context, req *sweep_api.ListSweeps
 		Token: req.GetPageToken(),
 	})
 	if err != nil {
-		return nil, storageapi.Error(err)
+		return nil, util.Error(err)
 	}
 
 	items, err := marshalSweeps(page.Items)

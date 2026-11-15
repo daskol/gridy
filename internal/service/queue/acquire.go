@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/daskol/gridy/internal/service/storageapi"
+	"github.com/daskol/gridy/internal/service/util"
 	"github.com/daskol/gridy/pkg/api/queue/v1"
 	"github.com/daskol/gridy/pkg/storage"
 	"google.golang.org/grpc/codes"
@@ -15,7 +15,7 @@ import (
 
 // Acquire assigns a trial or reports whether the worker should wait or stop.
 func (s *QueueService) Acquire(ctx context.Context, req *queue.AcquireRequest) (*queue.AcquireResponse, error) {
-	id, err := storageapi.SweepID(req.GetParent())
+	id, err := util.SweepID(req.GetParent())
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func (s *QueueService) Acquire(ctx context.Context, req *queue.AcquireRequest) (
 		SweepID: id, WorkerID: req.GetWorkerId(), RequestID: req.GetRequestId(),
 	})
 	if err != nil {
-		return nil, storageapi.Error(err)
+		return nil, util.Error(err)
 	}
 
 	switch acquisition.State {
@@ -41,7 +41,7 @@ func (s *QueueService) Acquire(ctx context.Context, req *queue.AcquireRequest) (
 		if assignment == nil {
 			return nil, status.Error(codes.Internal, "missing stored assignment")
 		}
-		params, err := storageapi.Object(assignment.Params)
+		params, err := util.Object(assignment.Params)
 		if err != nil {
 			return nil, err
 		}
