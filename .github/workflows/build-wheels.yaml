@@ -2,22 +2,7 @@ name: Build wheels
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-    paths: &paths
-      - '**/*.py'
-      - '**/*.go'
-      - '**/*.proto'
-      - 'pyproject.toml'
-      - 'MANIFEST.in'
-      - 'go.mod'
-      - 'go.sum'
-      - 'buf.yaml'
-      - 'buf.gen.yaml'
-      - 'scripts/install-go.sh'
-      - '.github/workflows/build-wheels.yaml'
-  pull_request:
-    paths: *paths
   workflow_dispatch:
 
 permissions:
