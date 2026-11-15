@@ -14,6 +14,7 @@
 
 """Command-line interface for the Gridy client and coordinator."""
 
+import os
 import sys
 from argparse import REMAINDER, ArgumentParser, Namespace
 from asyncio import run
@@ -21,6 +22,8 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 from inspect import iscoroutinefunction
 
 from aiohttp import ClientError
+
+from gridy.binary import find_binary
 
 try:
     __version__ = package_version('gridy')
@@ -35,6 +38,9 @@ class CommandParser(ArgumentParser):
         if not self.get_default('forward_args'):
             return super().parse_known_args(args, namespace)
 
+        # The parent parser has already consumed global options and selected
+        # this subcommand. Only initialize defaults and keep its arguments
+        # opaque.
         ns, remaining = super().parse_known_args([], namespace)
         ns.args = list(sys.argv[1:] if args is None else args)
         return ns, remaining
@@ -52,6 +58,8 @@ def version(ns: Namespace) -> None:
 
 def serve(ns: Namespace) -> None:
     """Run the Go coordinator with its original arguments."""
+    binary = find_binary()
+    os.execv(binary, [str(binary), 'serve', *ns.args])
 
 
 async def export(ns: Namespace) -> None:
@@ -70,8 +78,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             code = ns.func(ns)
     except (ClientError, OSError, RuntimeError, ValueError) as e:
-        print(f'{parser.prog}: {e}', file=sys.stderr)
-        sys.exit(1)
+        parser.exit(1, f'{parser.prog}: {e}\n')
     except KeyboardInterrupt:
         sys.exit(130)
 
