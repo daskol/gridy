@@ -12,10 +12,105 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser, Namespace
+"""Command-line interface for the Gridy client and coordinator."""
+
+import sys
+from argparse import REMAINDER, ArgumentParser, Namespace
+from asyncio import run
+from importlib.metadata import PackageNotFoundError, version as package_version
+from inspect import iscoroutinefunction
+
+from aiohttp import ClientError
+
+try:
+    __version__ = package_version('gridy')
+except PackageNotFoundError:
+    __version__ = 'unknown'
+
+
+class CommandParser(ArgumentParser):
+    """Capture forwarded command arguments without parsing their options."""
+
+    def parse_known_args(self, args=None, namespace=None):
+        if not self.get_default('forward_args'):
+            return super().parse_known_args(args, namespace)
+
+        ns, remaining = super().parse_known_args([], namespace)
+        ns.args = list(sys.argv[1:] if args is None else args)
+        return ns, remaining
+
+
+def help_(ns: Namespace) -> None:
+    """Show the available commands."""
+    parser.print_help()
+
+
+def version(ns: Namespace) -> None:
+    """Show the Python package version."""
+    print('gridy', __version__)
+
+
+def serve(ns: Namespace) -> None:
+    """Run the Go coordinator with its original arguments."""
+
+
+async def export(ns: Namespace) -> None:
+    """Export completed trials from one sweep as JSONL."""
+
+
+def main(argv: list[str] | None = None) -> None:
+    ns = parser.parse_args(argv)
+    if ns.func is None:
+        parser.print_usage()
+        return
+
+    try:
+        if iscoroutinefunction(ns.func):
+            code = run(ns.func(ns))
+        else:
+            code = ns.func(ns)
+    except (ClientError, OSError, RuntimeError, ValueError) as e:
+        print(f'{parser.prog}: {e}', file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
+
+    if code is not None:
+        sys.exit(code)
+
 
 parser = ArgumentParser(description=__doc__)
+parser.set_defaults(func=None)
+parser.add_argument('--version', action='version',
+                    version=f'%(prog)s {__version__}')
 
+subparsers = parser.add_subparsers(parser_class=CommandParser)
 
-def main() -> None:
-    _: Namespace = parser.parse_args()
+# Describe subcommand `help`.
+p_help = subparsers.add_parser(
+    'help', add_help=False, help='show this message and exit')
+p_help.set_defaults(func=help_)
+
+# Describe subcommand `version`.
+p_version = subparsers.add_parser(
+    'version', add_help=False, help='show the Python package version')
+p_version.set_defaults(func=version)
+
+# Describe subcommand `serve`.
+p_serve = subparsers.add_parser(
+    'serve', add_help=False, description=serve.__doc__,
+    help='run the Go coordinator (arguments are forwarded unchanged)')
+p_serve.add_argument('args', nargs=REMAINDER, help='Go coordinator arguments')
+p_serve.set_defaults(func=serve, forward_args=True)
+
+# Describe subcommand `export`.
+p_export = subparsers.add_parser(
+    'export', description=export.__doc__,
+    help='export completed trials as JSONL')
+p_export.add_argument('source', metavar='URI|DB_PATH',
+                      help='HTTP(S) or Unix socket URI')
+p_export.add_argument('output', metavar='OUTPUT',
+                      help='output JSONL file, or - for stdout')
+p_export.add_argument('-s', '--sweep', metavar='ID',
+                      help='sweep identifier (optional if only one exists)')
+p_export.set_defaults(func=export)
