@@ -95,12 +95,13 @@ max-line-length = 79
 [tool.setuptools]
 include-package-data = false
 platforms = ["Linux"]
-zip-safe = true
+zip-safe = false
 
 [tool.setuptools.packages.find]
 include = ["gridy*"]
 
 [tool.setuptools.package-data]
+gridy = ["bin/gridy"]
 
 [tool.yapf]
 based_on_style = "pep8"

@@ -6,10 +6,17 @@ on:
     tags: ['v*']
     paths: &python-paths
       - '**/*.py'
+      - '**/*.go'
+      - '**/*.proto'
       - '.github/workflows/on-push.yml'
       - '.pre-commit-config.yaml'
       - 'gridy/**'
       - 'pyproject.toml'
+      - 'MANIFEST.in'
+      - 'go.mod'
+      - 'go.sum'
+      - 'buf.yaml'
+      - 'buf.gen.yaml'
   pull_request:
     paths: *python-paths
 
@@ -49,6 +56,10 @@ jobs:
           python -m pip install -U pip
           python -m pip install -U build mypy 'pytest>=8.2' pytest-cov
 
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
       - name: Build Python distributions
         run: python -m build
 
@@ -59,6 +70,7 @@ jobs:
           python -m pip check
           python -I -c 'import gridy'
           gridy --help
+          gridy serve --help
 
       - name: Test with pytest
         run: |
